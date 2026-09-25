@@ -1,34 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, Camera, Plus, Eye, UserCheck, MapPin, Sparkles } from 'lucide-react';
+import {
+  BookOpen,
+  Users,
+  Camera,
+  Plus,
+  Loader2,
+  AlertCircle,
+  FolderOpen,
+} from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
-import Modal from '../../components/Modal';
-import StatusBadge from '../../components/StatusBadge';
-import { INITIAL_CLASSROOMS, INITIAL_STUDENTS } from '../../data/dummyData';
+import { classroomApi } from '../../services/api';
 
 const TeacherClasses = () => {
   const navigate = useNavigate();
-  const [classrooms, setClassrooms] = useState(INITIAL_CLASSROOMS);
-  const [selectedClass, setSelectedClass] = useState(null);
-  const [rosterModalOpen, setRosterModalOpen] = useState(false);
-  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [classrooms, setClassrooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const handleManageStudents = (cls) => {
-    setSelectedClass(cls);
-    setRosterModalOpen(true);
-  };
-
-  const handleViewClass = (cls) => {
-    setSelectedClass(cls);
-    setDetailModalOpen(true);
-  };
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await classroomApi.getTeacherClassrooms();
+        setClassrooms(Array.isArray(data) ? data : (data?.classrooms || []));
+      } catch (err) {
+        setError(err.message || 'Failed to load classrooms');
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="teacher-classes-page">
       <PageHeader
         title="My Classrooms"
-        subtitle="Manage assigned sections, student enrollment lists, and scheduled lectures"
+        subtitle="Manage assigned sections, student enrollment, and scheduled lectures"
         actions={
           <Button
             variant="primary"
@@ -41,151 +50,137 @@ const TeacherClasses = () => {
         }
       />
 
-      <div className="grid grid-cols-2" style={{ gap: '22px' }}>
-        {classrooms.map((cls) => (
-          <div key={cls.id} className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-            <div className="card-header" style={{ marginBottom: '14px' }}>
-              <div>
-                <span className="badge badge-primary" style={{ marginBottom: '6px' }}>
-                  {cls.semester} • {cls.section ? `Sec ${cls.section}` : ''}
-                </span>
-                <h3 className="card-title">{cls.name} - {cls.displayName}</h3>
-              </div>
-              <span className="badge badge-neutral">{cls.academicYear}</span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, fontSize: '0.875rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                <BookOpen size={16} color="var(--primary)" />
-                <span>Department: <strong>{cls.department}</strong></span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                <Users size={16} color="var(--text-muted)" />
-                <span>Enrolled: <strong>{cls.totalStudents} Students</strong></span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                <MapPin size={16} color="var(--text-muted)" />
-                <span>Assigned Hall: <strong>{cls.room}</strong></span>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-                <UserCheck size={16} color="var(--text-muted)" />
-                <span>Instructor: {cls.teacher}</span>
-              </div>
-            </div>
-
-            <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-light)', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <Button
-                variant="secondary"
-                size="sm"
-                icon={Eye}
-                onClick={() => handleViewClass(cls)}
-              >
-                View
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                icon={Users}
-                onClick={() => handleManageStudents(cls)}
-              >
-                Manage Students
-              </Button>
-
-              <Button
-                variant="primary"
-                size="sm"
-                icon={Camera}
-                onClick={() => navigate('/teacher/take-attendance')}
-              >
-                Take Attendance
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Roster / Students Modal */}
-      <Modal
-        isOpen={rosterModalOpen}
-        onClose={() => setRosterModalOpen(false)}
-        title={`Student Roster - ${selectedClass?.name || ''}`}
-        subtitle={`Total ${selectedClass?.totalStudents || 42} enrolled students with biometric status`}
-        maxWidth="680px"
-      >
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Student</th>
-                <th>Roll Number</th>
-                <th>Face Registered</th>
-                <th>Attendance %</th>
-              </tr>
-            </thead>
-            <tbody>
-              {INITIAL_STUDENTS.map((student) => (
-                <tr key={student.id}>
-                  <td>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img
-                        src={student.avatar}
-                        alt={student.name}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
-                      <span style={{ fontWeight: 600 }}>{student.name}</span>
-                    </div>
-                  </td>
-                  <td><code>{student.rollNo}</code></td>
-                  <td>
-                    <StatusBadge
-                      status={student.faceRegistered ? 'Registered' : 'Not Completed'}
-                      size="sm"
-                    />
-                  </td>
-                  <td>
-                    <strong style={{ color: student.overallAttendance >= 75 ? 'var(--success)' : 'var(--danger)' }}>
-                      {student.overallAttendance}%
-                    </strong>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
+          <Loader2 size={32} className="animate-spin" color="var(--primary)" />
         </div>
-      </Modal>
+      )}
 
-      {/* Classroom Details Modal */}
-      <Modal
-        isOpen={detailModalOpen}
-        onClose={() => setDetailModalOpen(false)}
-        title={selectedClass?.displayName}
-        subtitle="Classroom configuration and academic parameters"
-      >
-        {selectedClass && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', fontSize: '0.9rem' }}>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Class Code</span>
-              <p style={{ fontWeight: 600 }}>{selectedClass.name}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Department</span>
-              <p style={{ fontWeight: 600 }}>{selectedClass.department}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Academic Year & Semester</span>
-              <p style={{ fontWeight: 600 }}>{selectedClass.academicYear} • {selectedClass.semester}</p>
-            </div>
-            <div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Assigned Hall / Lab</span>
-              <p style={{ fontWeight: 600 }}>{selectedClass.room}</p>
-            </div>
+      {error && !loading && (
+        <div className="error-banner">
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
+      {!loading && !error && classrooms.length === 0 && (
+        <div className="card">
+          <div className="empty-state">
+            <FolderOpen size={48} color="var(--border)" />
+            <h4>No Classrooms Yet</h4>
+            <p>
+              You haven't created any classrooms yet. Click "Create Classroom" to get
+              started.
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              icon={Plus}
+              onClick={() => navigate('/teacher/create-classroom')}
+            >
+              Create First Classroom
+            </Button>
           </div>
-        )}
-      </Modal>
+        </div>
+      )}
+
+      {!loading && classrooms.length > 0 && (
+        <div className="grid grid-cols-2" style={{ gap: '22px' }}>
+          {classrooms.map((cls) => (
+            <div
+              key={cls._id}
+              className="card"
+              style={{ display: 'flex', flexDirection: 'column' }}
+            >
+              <div className="card-header" style={{ marginBottom: '14px' }}>
+                <div>
+                  <span className="badge badge-primary" style={{ marginBottom: '6px' }}>
+                    {cls.semester} • Sec {cls.section}
+                  </span>
+                  <h3 className="card-title">{cls.name}</h3>
+                </div>
+                <span className="badge badge-neutral">
+                  {cls.students?.length ?? 0} Students
+                </span>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  flex: 1,
+                  fontSize: '0.875rem',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <BookOpen size={16} color="var(--primary)" />
+                  <span>
+                    Subject: <strong>{cls.subject}</strong>
+                  </span>
+                </div>
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <Users size={16} color="var(--text-muted)" />
+                  <span>
+                    Enrolled: <strong>{cls.students?.length ?? 0} Students</strong>
+                  </span>
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: '20px',
+                  paddingTop: '16px',
+                  borderTop: '1px solid var(--border-light)',
+                  display: 'flex',
+                  gap: '8px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <Button
+                  variant="primary"
+                  size="sm"
+                  icon={Camera}
+                  onClick={() =>
+                    navigate('/teacher/take-attendance', {
+                      state: { classroomId: cls._id, classroomName: cls.name },
+                    })
+                  }
+                >
+                  Take Attendance
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  icon={Users}
+                  onClick={() =>
+                    navigate('/teacher/attendance-result', {
+                      state: { classroomId: cls._id, classroomName: cls.name },
+                    })
+                  }
+                >
+                  View Records
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

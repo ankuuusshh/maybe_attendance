@@ -1,29 +1,72 @@
-import React, { useState, useMemo } from 'react';
-import { Download, Calendar, ShieldCheck, Filter } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Download, Calendar, Filter, Loader2, AlertCircle, CalendarCheck } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
 import DataTable from '../../components/DataTable';
-import { STUDENT_ATTENDANCE_LOGS } from '../../data/dummyData';
+import { attendanceApi, classroomApi } from '../../services/api';
 
 const StudentAttendance = () => {
-  const [selectedSubject, setSelectedSubject] = useState('ALL');
+  const [classrooms, setClassrooms] = useState([]);
+  const [selectedClassroom, setSelectedClassroom] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [dateFilter, setDateFilter] = useState('');
 
-  const subjects = ['Data Structures', 'DBMS', 'Operating Systems', 'Computer Networks', 'Mathematics'];
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
+  // 1. Fetch classrooms for the filter dropdown
+  useEffect(() => {
+    classroomApi.getStudentClassrooms()
+      .then((data) => setClassrooms(Array.isArray(data) ? data : (data?.classrooms || [])))
+      .catch(() => {});
+  }, []);
+
+  // 2. Fetch attendance logs (either all or classroom-specific)
+  useEffect(() => {
+    const fetchAttendance = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        let data;
+        if (selectedClassroom !== 'ALL') {
+          data = await attendanceApi.getStudentAttendanceForClassroom(selectedClassroom);
+        } else {
+          data = await attendanceApi.getStudentAttendance();
+        }
+        const records = Array.isArray(data) ? data : (data?.attendance || []);
+        setLogs(records);
+      } catch (err) {
+        setError(err.message || 'Failed to fetch attendance history');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAttendance();
+  }, [selectedClassroom]);
+
+  // Client-side filtering by status and date
   const filteredLogs = useMemo(() => {
-    return STUDENT_ATTENDANCE_LOGS.filter((item) => {
-      const matchSub = selectedSubject === 'ALL' || item.subject === selectedSubject;
-      const matchStatus = selectedStatus === 'ALL' || item.status === selectedStatus;
-      const matchDate = !dateFilter || item.date === dateFilter;
-      return matchSub && matchStatus && matchDate;
+    return logs.filter((item) => {
+      const matchStatus =
+        selectedStatus === 'ALL' ||
+        item.status?.toLowerCase() === selectedStatus.toLowerCase();
+
+      const itemDateStr = item.date
+        ? new Date(item.date).toISOString().split('T')[0]
+        : '';
+      const matchDate = !dateFilter || itemDateStr === dateFilter;
+
+      return matchStatus && matchDate;
     });
-  }, [selectedSubject, selectedStatus, dateFilter]);
+  }, [logs, selectedStatus, dateFilter]);
 
   const totalLogs = filteredLogs.length;
-  const presentCount = filteredLogs.filter((l) => l.status === 'Present').length;
+  const presentCount = filteredLogs.filter(
+    (l) => l.status?.toLowerCase() === 'present'
+  ).length;
   const percentage = totalLogs > 0 ? ((presentCount / totalLogs) * 100).toFixed(1) : 0;
 
   const columns = [
@@ -31,64 +74,103 @@ const StudentAttendance = () => {
       header: 'Date & Time',
       render: (row) => (
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <span style={{ fontWeight: 600 }}>{row.date}</span>
-          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{row.time}</span>
+          <span style={{ fontWeight: 600 }}>
+            {row.date ? new Date(row.date).toLocaleDateString('en-IN', { dateStyle: 'medium' }) : '—'}
+          </span>
+          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            {row.date ? new Date(row.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+          </span>
         </div>
-      )
+      ),
+    },
+    {
+      header: 'Classroom',
+      render: (row) => (
+        <div>
+          <strong>{row.classroom?.name || 'Classroom'}</strong>
+          {row.classroom?.section && (
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>
+              Sec {row.classroom.section} • {row.classroom.semester}
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       header: 'Subject',
-      render: (row) => <strong>{row.subject}</strong>
-    },
-    {
-      header: 'Class / Hall',
-      accessor: 'class'
-    },
-    {
-      header: 'Instructor',
-      accessor: 'faculty'
-    },
-    {
-      header: 'Verification Method',
-      render: (row) => (
-        <span className="verification-badge">
-          <ShieldCheck size={14} color="var(--primary)" />
-          {row.method}
-        </span>
-      )
+      render: (row) => <span>{row.classroom?.subject || '—'}</span>,
     },
     {
       header: 'Status',
-      render: (row) => <StatusBadge status={row.status} />
-    }
+      render: (row) => (
+        <StatusBadge
+          status={row.status?.toLowerCase() === 'present' ? 'Present' : 'Absent'}
+        />
+      ),
+    },
   ];
 
   return (
     <div className="student-attendance-page">
       <PageHeader
         title="Attendance History"
-        subtitle="Complete chronological audit log of automated and recorded class attendances"
+        subtitle="Complete chronological audit log of recorded class attendances"
         actions={
           <Button
             variant="outline"
             size="sm"
             icon={Download}
-            onClick={() => alert('Attendance statement exported as PDF (Simulation)')}
+            onClick={() => alert('Attendance statement export simulation')}
           >
             Export Statement
           </Button>
         }
       />
 
+      {error && (
+        <div className="error-banner" style={{ marginBottom: '20px' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
+
       {/* Summary KPI Bar */}
       <div className="card" style={{ marginBottom: '24px', padding: '18px 24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: '16px',
+          }}
+        >
           <div>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Filtered Attendance Ratio
+            <span
+              style={{
+                fontSize: '0.8rem',
+                color: 'var(--text-muted)',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+              }}
+            >
+              Attendance Ratio
             </span>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '4px' }}>
-              <span style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-main)' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: '10px',
+                marginTop: '4px',
+              }}
+            >
+              <span
+                style={{
+                  fontSize: '1.75rem',
+                  fontWeight: 800,
+                  color: 'var(--text-main)',
+                }}
+              >
                 {percentage}%
               </span>
               <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -99,14 +181,23 @@ const StudentAttendance = () => {
 
           <div style={{ display: 'flex', gap: '12px' }}>
             <span className="badge badge-safe">Present: {presentCount}</span>
-            <span className="badge badge-danger">Absent: {totalLogs - presentCount}</span>
+            <span className="badge badge-danger">
+              Absent: {totalLogs - presentCount}
+            </span>
           </div>
         </div>
       </div>
 
       {/* Filter Toolbar */}
       <div className="card" style={{ marginBottom: '24px', padding: '16px 20px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            flexWrap: 'wrap',
+          }}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <Filter size={16} color="var(--text-muted)" />
             <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>Filters:</span>
@@ -115,12 +206,14 @@ const StudentAttendance = () => {
           <div style={{ minWidth: '180px' }}>
             <select
               className="form-select"
-              value={selectedSubject}
-              onChange={(e) => setSelectedSubject(e.target.value)}
+              value={selectedClassroom}
+              onChange={(e) => setSelectedClassroom(e.target.value)}
             >
-              <option value="ALL">All Subjects</option>
-              {subjects.map((sub) => (
-                <option key={sub} value={sub}>{sub}</option>
+              <option value="ALL">All Enrolled Classrooms</option>
+              {classrooms.map((cls) => (
+                <option key={cls._id} value={cls._id}>
+                  {cls.name} ({cls.subject})
+                </option>
               ))}
             </select>
           </div>
@@ -132,8 +225,8 @@ const StudentAttendance = () => {
               onChange={(e) => setSelectedStatus(e.target.value)}
             >
               <option value="ALL">All Statuses</option>
-              <option value="Present">Present Only</option>
-              <option value="Absent">Absent Only</option>
+              <option value="present">Present Only</option>
+              <option value="absent">Absent Only</option>
             </select>
           </div>
 
@@ -148,12 +241,12 @@ const StudentAttendance = () => {
             />
           </div>
 
-          {(selectedSubject !== 'ALL' || selectedStatus !== 'ALL' || dateFilter) && (
+          {(selectedClassroom !== 'ALL' || selectedStatus !== 'ALL' || dateFilter) && (
             <Button
               variant="ghost"
               size="sm"
               onClick={() => {
-                setSelectedSubject('ALL');
+                setSelectedClassroom('ALL');
                 setSelectedStatus('ALL');
                 setDateFilter('');
               }}
@@ -166,13 +259,25 @@ const StudentAttendance = () => {
 
       {/* Attendance Table */}
       <div className="card">
-        <DataTable
-          columns={columns}
-          data={filteredLogs}
-          searchKeys={['subject', 'faculty', 'class', 'status']}
-          searchPlaceholder="Search by subject, instructor, or date..."
-          emptyMessage="No attendance logs found matching the selected filters."
-        />
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+            <Loader2 size={32} className="animate-spin" color="var(--primary)" />
+          </div>
+        ) : filteredLogs.length === 0 ? (
+          <div className="empty-state">
+            <CalendarCheck size={44} color="var(--border)" />
+            <h4>No Attendance Records Found</h4>
+            <p>There are no attendance records matching your selected filters.</p>
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filteredLogs}
+            searchKeys={['status', 'classroom.name', 'classroom.subject']}
+            searchPlaceholder="Search by status or classroom name..."
+            emptyMessage="No attendance logs found matching search."
+          />
+        )}
       </div>
     </div>
   );

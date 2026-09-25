@@ -4,9 +4,7 @@
   flex-direction: column;
   min-width: 0;
   margin-left: var(--sidebar-width);
-  min-height: 100vh;
-  background-color: var(--bg-app);
-  transition: margin-left 0.25s ease;
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (max-width: 1024px) {

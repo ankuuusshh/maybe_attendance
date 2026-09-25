@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Users,
@@ -7,21 +7,39 @@ import {
   Clock,
   Camera,
   PlusCircle,
-  BarChart3,
   ArrowRight,
   Sparkles,
-  MapPin
+  Loader2,
+  FolderOpen,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
-import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
-import { TEACHER_TODAYS_CLASSES } from '../../data/dummyData';
+import { classroomApi } from '../../services/api';
 import './TeacherPages.css';
 
 const TeacherDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
+  const [classrooms, setClassrooms] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    classroomApi.getTeacherClassrooms()
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data?.classrooms || [];
+        setClassrooms(list);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totalClassrooms = classrooms.length;
+  const totalStudents = classrooms.reduce(
+    (acc, c) => acc + (c.students?.length || 0),
+    0
+  );
 
   return (
     <div className="teacher-dashboard">
@@ -29,9 +47,10 @@ const TeacherDashboard = () => {
       <div className="teacher-welcome-banner">
         <div className="welcome-text-wrap">
           <span className="welcome-tag">Faculty Administration Portal</span>
-          <h2>Welcome, {user?.name || 'Prof. Dr. Rajesh Sharma'}</h2>
+          <h2>Welcome, {user?.name || 'Teacher'} 👋</h2>
           <p>
-            {user?.designation || 'Associate Professor & HOD'} • {user?.department || 'Department of Computer Science & Engineering'}
+            {user?.email}
+            {user?.department ? ` • ${user.department}` : ''}
           </p>
         </div>
 
@@ -42,7 +61,7 @@ const TeacherDashboard = () => {
             icon={Camera}
             onClick={() => navigate('/teacher/take-attendance')}
           >
-            Take AI Attendance
+            Take Attendance
           </Button>
           <Button
             variant="secondary"
@@ -59,101 +78,126 @@ const TeacherDashboard = () => {
       <div className="grid grid-cols-4" style={{ marginBottom: '28px' }}>
         <StatCard
           title="Total Classrooms"
-          value="4"
-          subtitle="Assigned active sections"
+          value={loading ? '—' : totalClassrooms}
+          subtitle="Active assigned sections"
           icon={BookOpen}
           color="primary"
         />
         <StatCard
-          title="Total Students"
-          value="168"
-          subtitle="Enrolled across courses"
+          title="Enrolled Students"
+          value={loading ? '—' : totalStudents}
+          subtitle="Across your classrooms"
           icon={Users}
           color="purple"
         />
         <StatCard
-          title="Today's Classes"
-          value="3"
-          subtitle="2 Completed • 1 Upcoming"
+          title="Semester Status"
+          value="Active"
+          subtitle="Current academic term"
           icon={Clock}
           color="warning"
         />
         <StatCard
-          title="Today's Attendance"
-          value="92.4%"
-          subtitle="Average student presence"
+          title="Attendance Mode"
+          value="Manual & AI"
+          subtitle="Biometric assisted"
           icon={CalendarCheck}
           color="success"
-          trend="+3.2%"
-          trendType="up"
         />
       </div>
 
-      {/* Today's Classes List */}
+      {/* Classrooms Section */}
       <div className="card" style={{ marginBottom: '28px' }}>
         <div className="card-header">
           <div>
-            <h3 className="card-title">Today's Class Schedule</h3>
-            <p className="card-subtitle">Conduct lectures and launch instant AI facial attendance scanning</p>
+            <h3 className="card-title">My Teaching Classrooms</h3>
+            <p className="card-subtitle">
+              Quick access to take attendance or review class records
+            </p>
           </div>
-          <span className="badge badge-info">3 Lectures Scheduled Today</span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate('/teacher/classes')}
+          >
+            View All ({classrooms.length})
+          </Button>
         </div>
 
-        <div className="todays-classes-grid">
-          {TEACHER_TODAYS_CLASSES.map((session) => (
-            <div key={session.id} className="today-class-card">
-              <div className="today-class-header">
-                <div>
-                  <span className="today-class-code">{session.subjectCode} • {session.classroom}</span>
-                  <h4 className="today-class-title">{session.subject}</h4>
-                </div>
-                <StatusBadge status={session.status} />
-              </div>
-
-              <div className="today-class-body">
-                <div className="today-class-info-row">
-                  <Clock size={16} color="var(--primary)" />
-                  <span>{session.time}</span>
-                </div>
-                <div className="today-class-info-row">
-                  <MapPin size={16} color="var(--text-muted)" />
-                  <span>{session.room}</span>
-                </div>
-                <div className="today-class-info-row">
-                  <Users size={16} color="var(--text-muted)" />
-                  <span>{session.totalStudents} Registered Students</span>
-                </div>
-              </div>
-
-              <div className="today-class-footer">
-                {session.status === 'Completed' ? (
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-                    <span style={{ fontSize: '0.825rem', color: 'var(--success-text)', fontWeight: 600 }}>
-                      Attendance: <strong>{session.attendancePercentage}% Recorded</strong>
+        {loading ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+            <Loader2 size={28} className="animate-spin" color="var(--primary)" />
+          </div>
+        ) : classrooms.length === 0 ? (
+          <div className="empty-state" style={{ padding: '36px 0' }}>
+            <FolderOpen size={44} color="var(--border)" />
+            <h4>No Classrooms Yet</h4>
+            <p>Create your first classroom to begin enrolling students and tracking attendance.</p>
+            <Button
+              variant="primary"
+              size="md"
+              icon={PlusCircle}
+              onClick={() => navigate('/teacher/create-classroom')}
+            >
+              Create Classroom
+            </Button>
+          </div>
+        ) : (
+          <div className="todays-classes-grid">
+            {classrooms.slice(0, 4).map((cls) => (
+              <div key={cls._id} className="today-class-card">
+                <div className="today-class-header">
+                  <div>
+                    <span className="today-class-code">
+                      {cls.semester} • Sec {cls.section}
                     </span>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => navigate('/teacher/attendance-result')}
-                    >
-                      View Report
-                    </Button>
+                    <h4 className="today-class-title">{cls.name}</h4>
                   </div>
-                ) : (
+                  <span className="badge badge-primary">
+                    {cls.students?.length || 0} Students
+                  </span>
+                </div>
+
+                <div className="today-class-body">
+                  <div className="today-class-info-row">
+                    <BookOpen size={16} color="var(--primary)" />
+                    <span>Subject: <strong>{cls.subject}</strong></span>
+                  </div>
+                  <div className="today-class-info-row">
+                    <Users size={16} color="var(--text-muted)" />
+                    <span>Enrolled: <strong>{cls.students?.length || 0} Students</strong></span>
+                  </div>
+                </div>
+
+                <div className="today-class-footer" style={{ gap: '8px' }}>
                   <Button
                     size="sm"
                     variant="primary"
                     icon={Camera}
-                    fullWidth
-                    onClick={() => navigate('/teacher/take-attendance')}
+                    onClick={() =>
+                      navigate('/teacher/take-attendance', {
+                        state: { classroomId: cls._id },
+                      })
+                    }
                   >
-                    Take Attendance Now
+                    Take Attendance
                   </Button>
-                )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      navigate('/teacher/attendance-result', {
+                        state: { classroomId: cls._id },
+                      })
+                    }
+                  >
+                    Records
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* AI Attendance Feature Callout Banner */}
@@ -162,9 +206,10 @@ const TeacherDashboard = () => {
           <div className="ai-badge-pill">
             <Sparkles size={14} /> AI Biometric Attendance
           </div>
-          <h3>Save 15 minutes every lecture with Instant Face Recognition</h3>
+          <h3>Automate Student Roll Calls with Instant Face Recognition</h3>
           <p>
-            Simply capture a single classroom photo from your phone or webcam. Our neural net detects every student, calculates 128-d encodings, and flags absent students automatically.
+            Capture a lecture hall snapshot. Our system maps facial landmarks against student enrollments,
+            letting you verify and submit official attendance in seconds.
           </p>
           <Button
             variant="primary"

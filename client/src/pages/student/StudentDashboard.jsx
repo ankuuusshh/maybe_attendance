@@ -1,30 +1,55 @@
-import React from 'react';
-import { useNavigate } from 'react-router-dom';
-import {
-  CalendarCheck,
-  CheckCircle,
-  XCircle,
-  Clock,
-  ScanFace,
-  ArrowRight,
-  ShieldCheck,
-  AlertTriangle
-} from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CalendarCheck, CheckCircle, XCircle, Clock, ScanFace, AlertTriangle, Loader2, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import StatCard from '../../components/StatCard';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
-import { STUDENT_SUBJECT_ATTENDANCE, STUDENT_ATTENDANCE_LOGS } from '../../data/dummyData';
+import { attendanceApi } from '../../services/api';
+import { useNavigate } from 'react-router-dom';
 import './StudentPages.css';
 
 const StudentDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const totalClasses = STUDENT_SUBJECT_ATTENDANCE.reduce((acc, curr) => acc + curr.total, 0);
-  const totalPresent = STUDENT_SUBJECT_ATTENDANCE.reduce((acc, curr) => acc + curr.present, 0);
-  const totalAbsent = totalClasses - totalPresent;
-  const overallPercentage = ((totalPresent / totalClasses) * 100).toFixed(1);
+  const [summary, setSummary] = useState(null);
+  const [recentLogs, setRecentLogs] = useState([]);
+  const [loadingSummary, setLoadingSummary] = useState(true);
+  const [loadingLogs, setLoadingLogs] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    // Load attendance summary
+    attendanceApi.getStudentSummary()
+      .then((data) => {
+        const arr = Array.isArray(data) ? data : (data?.summary || []);
+        if (arr.length > 0) {
+          const totalClasses = arr.reduce((acc, c) => acc + (c.totalClasses || 0), 0);
+          const present = arr.reduce((acc, c) => acc + (c.present || 0), 0);
+          const absent = arr.reduce((acc, c) => acc + (c.absent || 0), 0);
+          const percentage = totalClasses > 0 ? Math.round((present / totalClasses) * 100) : 0;
+          setSummary({ totalClasses, present, absent, percentage });
+        } else {
+          setSummary({ totalClasses: 0, present: 0, absent: 0, percentage: 0 });
+        }
+      })
+      .catch((err) => setError(err.message || 'Failed to load attendance summary'))
+      .finally(() => setLoadingSummary(false));
+
+    // Load recent attendance logs
+    attendanceApi.getStudentAttendance()
+      .then((data) => {
+        const logs = Array.isArray(data) ? data : (data?.attendance || []);
+        setRecentLogs(logs.slice(0, 5));
+      })
+      .catch(() => {})
+      .finally(() => setLoadingLogs(false));
+  }, []);
+
+  const totalClasses = summary?.totalClasses ?? 0;
+  const totalPresent = summary?.present ?? 0;
+  const totalAbsent = summary?.absent ?? 0;
+  const percentage = summary?.percentage ?? 0;
 
   return (
     <div className="student-dashboard">
@@ -32,20 +57,21 @@ const StudentDashboard = () => {
       <div className="welcome-banner">
         <div className="welcome-text-wrap">
           <span className="welcome-tag">Student Attendance Portal</span>
-          <h2>Welcome back, {user?.name || 'Ankush Raj'}! 👋</h2>
+          <h2>Welcome back, {user?.name || 'Student'}! 👋</h2>
           <p>
-            Roll No: <strong>{user?.rollNo || '24105129015'}</strong> • {user?.department || 'Computer Science & Engineering'} • Semester 4
+            {user?.email}
+            {user?.department ? ` • ${user.department}` : ''}
           </p>
         </div>
 
         <div className="welcome-biometric-status">
           <div className="biometric-icon-ring">
-            <ScanFace size={24} />
+            <ScanFace size={22} />
           </div>
           <div className="biometric-info">
-            <span className="biometric-label">Face Recognition Status</span>
+            <span className="biometric-label">Face Recognition</span>
             <div className="biometric-badge-row">
-              <StatusBadge status="Registered" text="5 Biometric Samples Enrolled" />
+              <StatusBadge status="Registered" text="Biometric Enrolled" />
             </div>
           </div>
           <Button
@@ -58,184 +84,116 @@ const StudentDashboard = () => {
         </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid grid-cols-4" style={{ marginBottom: '28px' }}>
-        <StatCard
-          title="Overall Attendance"
-          value={`${overallPercentage}%`}
-          subtitle="Minimum 75% required"
-          icon={CalendarCheck}
-          color={Number(overallPercentage) >= 75 ? 'primary' : 'danger'}
-          progress={Number(overallPercentage)}
-          trend="+1.8% this week"
-          trendType="up"
-        />
-        <StatCard
-          title="Total Classes"
-          value={totalClasses}
-          subtitle="Across 5 active subjects"
-          icon={Clock}
-          color="purple"
-        />
-        <StatCard
-          title="Present"
-          value={totalPresent}
-          subtitle="Classes attended"
-          icon={CheckCircle}
-          color="success"
-          trend="Regular"
-          trendType="up"
-        />
-        <StatCard
-          title="Absent"
-          value={totalAbsent}
-          subtitle="Excused & unexcused"
-          icon={XCircle}
-          color="danger"
-          trend="Watch Limit"
-          trendType="down"
-        />
-      </div>
+      {error && (
+        <div className="error-banner" style={{ marginBottom: '20px' }}>
+          <AlertCircle size={16} />
+          <span>{error}</span>
+        </div>
+      )}
 
-      {/* Attendance Warning Alert if any subject < 75% */}
-      {STUDENT_SUBJECT_ATTENDANCE.some((s) => s.percentage < 75) && (
-        <div className="dashboard-alert warning-alert">
+      {/* Statistics Cards */}
+      {loadingSummary ? (
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '32px 0' }}>
+          <Loader2 size={28} className="animate-spin" color="var(--primary)" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-4" style={{ marginBottom: '28px' }}>
+          <StatCard
+            title="Overall Attendance"
+            value={`${percentage}%`}
+            subtitle="Minimum 75% required"
+            icon={CalendarCheck}
+            color={Number(percentage) >= 75 ? 'success' : 'danger'}
+            progress={Number(percentage)}
+          />
+          <StatCard
+            title="Total Classes"
+            value={totalClasses}
+            subtitle="Across all classrooms"
+            icon={Clock}
+            color="purple"
+          />
+          <StatCard
+            title="Present"
+            value={totalPresent}
+            subtitle="Classes attended"
+            icon={CheckCircle}
+            color="success"
+          />
+          <StatCard
+            title="Absent"
+            value={totalAbsent}
+            subtitle="Missed classes"
+            icon={XCircle}
+            color="danger"
+          />
+        </div>
+      )}
+
+      {/* Attendance Warning */}
+      {!loadingSummary && Number(percentage) < 75 && totalClasses > 0 && (
+        <div className="dashboard-alert warning-alert" style={{ marginBottom: '28px' }}>
           <AlertTriangle size={20} className="alert-icon" />
           <div className="alert-content">
-            <h4>Attendance Defaulter Warning</h4>
+            <h4>Attendance Below Threshold</h4>
             <p>
-              Your attendance in <strong>Mathematics IV (64%)</strong> is currently below the mandatory 75% university eligibility threshold. Attend upcoming sessions to avoid debarment.
+              Your overall attendance is <strong>{percentage}%</strong>, which is below
+              the mandatory 75% eligibility requirement.
             </p>
           </div>
         </div>
       )}
 
-      {/* Subject-Wise Attendance Breakdown */}
-      <div className="card" style={{ marginBottom: '28px' }}>
-        <div className="card-header">
-          <div>
-            <h3 className="card-title">Subject-Wise Attendance</h3>
-            <p className="card-subtitle">Live breakdown and eligibility index across current curriculum</p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            icon={ArrowRight}
-            iconPosition="right"
-            onClick={() => navigate('/student/attendance')}
-          >
-            Detailed Records
-          </Button>
-        </div>
-
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Subject & Code</th>
-                <th>Instructor</th>
-                <th>Present / Total</th>
-                <th>Progress</th>
-                <th>Attendance %</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STUDENT_SUBJECT_ATTENDANCE.map((sub) => {
-                let badgeClass = 'badge-safe';
-                if (sub.status === 'Warning') badgeClass = 'badge-warning';
-                if (sub.status === 'Low') badgeClass = 'badge-danger';
-
-                return (
-                  <tr key={sub.id}>
-                    <td>
-                      <div className="table-subject-cell">
-                        <span className="subject-name">{sub.subject}</span>
-                        <span className="subject-code">{sub.code}</span>
-                      </div>
-                    </td>
-                    <td>{sub.faculty}</td>
-                    <td>
-                      <strong>{sub.present}</strong> / {sub.total}
-                    </td>
-                    <td style={{ minWidth: '130px' }}>
-                      <div className="subject-progress-track">
-                        <div
-                          className={`subject-progress-bar ${
-                            sub.percentage >= 80 ? 'fill-green' : sub.percentage >= 75 ? 'fill-amber' : 'fill-red'
-                          }`}
-                          style={{ width: `${sub.percentage}%` }}
-                        />
-                      </div>
-                    </td>
-                    <td>
-                      <strong
-                        style={{
-                          color:
-                            sub.percentage >= 80 ? 'var(--success)' : sub.percentage >= 75 ? 'var(--warning)' : 'var(--danger)'
-                        }}
-                      >
-                        {sub.percentage}%
-                      </strong>
-                    </td>
-                    <td>
-                      <StatusBadge status={sub.status} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Recent Attendance Activity */}
+      {/* Recent Attendance */}
       <div className="card">
         <div className="card-header">
           <div>
             <h3 className="card-title">Recent Attendance Activity</h3>
-            <p className="card-subtitle">Automated classroom recognition snapshots and verification history</p>
+            <p className="card-subtitle">Latest recorded class attendances</p>
           </div>
+          <Button variant="outline" size="sm" onClick={() => navigate('/student/attendance')}>
+            View All
+          </Button>
         </div>
 
-        <div className="table-responsive">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Date & Time</th>
-                <th>Subject</th>
-                <th>Classroom</th>
-                <th>Faculty</th>
-                <th>Verification Engine</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {STUDENT_ATTENDANCE_LOGS.slice(0, 5).map((log) => (
-                <tr key={log.id}>
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column' }}>
-                      <span style={{ fontWeight: 600 }}>{log.date}</span>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.time}</span>
-                    </div>
-                  </td>
-                  <td><strong>{log.subject}</strong></td>
-                  <td>{log.class}</td>
-                  <td>{log.faculty}</td>
-                  <td>
-                    <span className="verification-badge">
-                      <ShieldCheck size={13} color="var(--primary)" />
-                      {log.method}
-                    </span>
-                  </td>
-                  <td>
-                    <StatusBadge status={log.status} />
-                  </td>
+        {loadingLogs ? (
+          <div style={{ display: 'flex', justifyContent: 'center', padding: '24px 0' }}>
+            <Loader2 size={24} className="animate-spin" color="var(--primary)" />
+          </div>
+        ) : recentLogs.length === 0 ? (
+          <div className="empty-state" style={{ padding: '32px 0' }}>
+            <CalendarCheck size={36} color="var(--border)" />
+            <h4>No attendance records yet</h4>
+            <p>Attendance records will appear here once marked by your teachers.</p>
+          </div>
+        ) : (
+          <div className="table-responsive">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Classroom</th>
+                  <th>Subject</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {recentLogs.map((log, i) => (
+                  <tr key={log._id || i}>
+                    <td>
+                      <strong>{new Date(log.date).toLocaleDateString('en-IN', { dateStyle: 'medium' })}</strong>
+                    </td>
+                    <td>{log.classroom?.name || '—'}</td>
+                    <td>{log.classroom?.subject || '—'}</td>
+                    <td>
+                      <StatusBadge status={log.status === 'present' ? 'Present' : 'Absent'} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

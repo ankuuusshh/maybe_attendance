@@ -11,7 +11,8 @@ import {
   Sparkles,
   Lock,
   Mail,
-  CheckCircle2
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
@@ -21,138 +22,99 @@ const Login = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
 
-  const [role, setRole] = useState('student');
-  const [email, setEmail] = useState('ankush.raj@college.edu');
-  const [password, setPassword] = useState('••••••••••');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [showForgotModal, setShowForgotModal] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  const [forgotSent, setForgotSent] = useState(false);
+  const [error, setError] = useState('');
 
-  // When role changes, pre-fill appropriate demo credentials
-  const handleRoleSelect = (selectedRole) => {
-    setRole(selectedRole);
-    if (selectedRole === 'student') {
-      setEmail('ankush.raj@college.edu');
-    } else if (selectedRole === 'teacher') {
-      setEmail('rajesh.sharma@college.edu');
-    } else if (selectedRole === 'admin') {
-      setEmail('admin@college.edu');
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      login(role, { email });
-      setLoading(false);
-      if (role === 'student') {
-        navigate('/student/dashboard');
-      } else if (role === 'teacher') {
+    try {
+      const user = await login(email, password);
+      if (user.role === 'teacher') {
         navigate('/teacher/dashboard');
-      } else if (role === 'admin') {
+      } else if (user.role === 'admin') {
         navigate('/admin/dashboard');
+      } else {
+        navigate('/student/dashboard');
       }
-    }, 400);
-  };
-
-  const handleForgotSubmit = (e) => {
-    e.preventDefault();
-    setForgotSent(true);
-    setTimeout(() => {
-      setForgotSent(false);
-      setShowForgotModal(false);
-    }, 2000);
+    } catch (err) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="login-root">
       <div className="login-container">
-        {/* Left Branding Panel */}
+
+        {/* ── Left Branding Panel ── */}
         <div className="login-brand-panel">
           <div className="brand-panel-header">
             <div className="login-brand-badge">
-              <ScanFace size={24} />
+              <ScanFace size={22} />
               <span>SmartPresence AI</span>
             </div>
           </div>
 
           <div className="brand-panel-content">
             <div className="ai-chip">
-              <Sparkles size={14} /> Next-Gen Biometric Intelligence
+              <Sparkles size={13} /> Next-Gen Biometric Intelligence
             </div>
             <h2>Frictionless, AI-powered attendance for modern campuses.</h2>
             <p>
-              Instantly recognize dozens of faces in high-resolution classroom snapshots with 99.2% accuracy powered by deep convolutional neural networks.
+              Instantly recognize dozens of faces in high-resolution classroom
+              snapshots with 99.2% accuracy powered by deep convolutional neural
+              networks.
             </p>
 
             <div className="brand-features-list">
-              <div className="brand-feature">
-                <CheckCircle2 size={18} className="feature-check" />
-                <span>One-click group photo recognition in under 2 seconds</span>
-              </div>
-              <div className="brand-feature">
-                <CheckCircle2 size={18} className="feature-check" />
-                <span>Multi-angle 128-d biometric facial encoding</span>
-              </div>
-              <div className="brand-feature">
-                <CheckCircle2 size={18} className="feature-check" />
-                <span>Automated defaulter tracking and instant analytics</span>
-              </div>
+              {[
+                'One-click group photo recognition in under 2 seconds',
+                'Multi-angle 128-d biometric facial encoding',
+                'Automated defaulter tracking and instant analytics',
+              ].map((feature) => (
+                <div className="brand-feature" key={feature}>
+                  <CheckCircle2 size={16} className="feature-check" />
+                  <span>{feature}</span>
+                </div>
+              ))}
             </div>
+
+            {/* Decorative orbs */}
+            <div className="brand-orb brand-orb-1" />
+            <div className="brand-orb brand-orb-2" />
           </div>
 
           <div className="brand-panel-footer">
-            <span>© 2026 Academic Information & Biometrics System</span>
+            <span>© 2026 Academic Information &amp; Biometrics System</span>
           </div>
         </div>
 
-        {/* Right Form Card */}
+        {/* ── Right Form Card ── */}
         <div className="login-form-panel">
           <div className="login-form-inner">
+
             <div className="login-header-group">
               <div className="mobile-logo-icon">
-                <ScanFace size={28} />
+                <ScanFace size={26} />
               </div>
-              <h1 className="login-title">Attendance System</h1>
-              <p className="login-subtitle">Smart AI-Powered Attendance</p>
+              <h1 className="login-title">Welcome back</h1>
+              <p className="login-subtitle">Sign in to your attendance portal</p>
             </div>
 
-            {/* Development Role Selector */}
-            <div className="dev-role-selector">
-              <div className="dev-role-label">
-                <span>Select Portal Role (Demo Simulation)</span>
+            {/* Error banner */}
+            {error && (
+              <div className="login-error-banner">
+                <AlertCircle size={16} />
+                <span>{error}</span>
               </div>
-              <div className="role-pills">
-                <button
-                  type="button"
-                  className={`role-pill ${role === 'student' ? 'active' : ''}`}
-                  onClick={() => handleRoleSelect('student')}
-                >
-                  <GraduationCap size={16} />
-                  <span>Student</span>
-                </button>
-                <button
-                  type="button"
-                  className={`role-pill ${role === 'teacher' ? 'active' : ''}`}
-                  onClick={() => handleRoleSelect('teacher')}
-                >
-                  <Briefcase size={16} />
-                  <span>Teacher</span>
-                </button>
-                <button
-                  type="button"
-                  className={`role-pill ${role === 'admin' ? 'active' : ''}`}
-                  onClick={() => handleRoleSelect('admin')}
-                >
-                  <Shield size={16} />
-                  <span>Admin</span>
-                </button>
-              </div>
-            </div>
+            )}
 
             <form onSubmit={handleSubmit} className="login-form">
               <div className="form-group">
@@ -160,15 +122,16 @@ const Login = () => {
                   College Email Address
                 </label>
                 <div className="input-with-icon">
-                  <Mail size={18} className="field-icon" />
+                  <Mail size={17} className="field-icon" />
                   <input
                     id="email-input"
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your institutional email"
+                    placeholder="your.name@college.edu"
                     className="form-input with-left-icon"
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -178,16 +141,9 @@ const Login = () => {
                   <label className="form-label" htmlFor="password-input">
                     Password
                   </label>
-                  <button
-                    type="button"
-                    className="forgot-link"
-                    onClick={() => setShowForgotModal(true)}
-                  >
-                    Forgot password?
-                  </button>
                 </div>
                 <div className="input-with-icon">
-                  <Lock size={18} className="field-icon" />
+                  <Lock size={17} className="field-icon" />
                   <input
                     id="password-input"
                     type={showPassword ? 'text' : 'password'}
@@ -196,6 +152,7 @@ const Login = () => {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     className="form-input with-left-icon with-right-btn"
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
@@ -203,16 +160,9 @@ const Login = () => {
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>
                 </div>
-              </div>
-
-              <div className="form-options">
-                <label className="remember-me">
-                  <input type="checkbox" defaultChecked />
-                  <span>Keep me signed in</span>
-                </label>
               </div>
 
               <Button
@@ -224,64 +174,32 @@ const Login = () => {
                 icon={ArrowRight}
                 iconPosition="right"
               >
-                Sign In as {role.charAt(0).toUpperCase() + role.slice(1)}
+                Sign In to Portal
               </Button>
             </form>
 
-            <div className="login-note-box">
-              <p>
-                <strong>Demo Mode:</strong> Role selected above determines which dashboard opens on submission. In production, authentication is verified via JWT tokens.
-              </p>
+            {/* Role Hint */}
+            <div className="login-hint-grid">
+              <div className="login-hint-card">
+                <GraduationCap size={16} />
+                <span>Student</span>
+              </div>
+              <div className="login-hint-card">
+                <Briefcase size={16} />
+                <span>Faculty</span>
+              </div>
+              <div className="login-hint-card">
+                <Shield size={16} />
+                <span>Admin</span>
+              </div>
             </div>
+
+            <p className="login-note">
+              Your role is automatically determined from your registered account.
+            </p>
           </div>
         </div>
       </div>
-
-      {/* Forgot Password Modal (UI Only) */}
-      {showForgotModal && (
-        <div className="modal-overlay" onClick={() => setShowForgotModal(false)}>
-          <div className="modal-container" style={{ maxWidth: '420px' }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">Reset Password</h3>
-              <button className="modal-close-btn" onClick={() => setShowForgotModal(false)}>×</button>
-            </div>
-            <div className="modal-body">
-              {forgotSent ? (
-                <div className="forgot-success">
-                  <CheckCircle2 size={36} color="var(--success)" />
-                  <h4>Reset Link Dispatched!</h4>
-                  <p>A password reset link has been simulated for {forgotEmail || email}.</p>
-                </div>
-              ) : (
-                <form onSubmit={handleForgotSubmit}>
-                  <p className="forgot-desc">
-                    Enter your college email address. We'll send an instructions link to reset your credentials.
-                  </p>
-                  <div className="form-group">
-                    <label className="form-label">Email Address</label>
-                    <input
-                      type="email"
-                      required
-                      placeholder="e.g. yourname@college.edu"
-                      value={forgotEmail || email}
-                      onChange={(e) => setForgotEmail(e.target.value)}
-                      className="form-input"
-                    />
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
-                    <Button variant="secondary" onClick={() => setShowForgotModal(false)} fullWidth>
-                      Cancel
-                    </Button>
-                    <Button type="submit" variant="primary" fullWidth>
-                      Send Reset Link
-                    </Button>
-                  </div>
-                </form>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

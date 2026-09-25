@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Camera,
   Upload,
@@ -12,27 +12,42 @@ import {
   RotateCcw,
   ShieldCheck,
   ChevronRight,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Loader2,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
-import { INITIAL_CLASSROOMS, INITIAL_SUBJECTS, DUMMY_AI_STUDENTS_RESULT } from '../../data/dummyData';
+import { classroomApi, attendanceApi } from '../../services/api';
 import './TakeAttendance.css';
 
-const DEFAULT_SAMPLE_PHOTO = 'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1200&q=80';
+const DEFAULT_SAMPLE_PHOTO =
+  'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1200&q=80';
 
 const TakeAttendance = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // Steps: 1: Classroom & Subject | 2: Photo Capture | 3: AI Processing & Verification
+  // Step 1: Classroom | Step 2: Photo Capture | Step 3: Verification & Submit
   const [currentStep, setCurrentStep] = useState(1);
 
   // Form selections
-  const [selectedClassroom, setSelectedClassroom] = useState('c1');
-  const [selectedSubject, setSelectedSubject] = useState('sub1');
-  const [sessionDate, setSessionDate] = useState(new Date().toISOString().split('T')[0]);
+  const [classrooms, setClassrooms] = useState([]);
+  const [selectedClassroomId, setSelectedClassroomId] = useState(
+    location.state?.classroomId || ''
+  );
+  const [currentClassroom, setCurrentClassroom] = useState(null);
+  const [sessionDate, setSessionDate] = useState(
+    new Date().toISOString().split('T')[0]
+  );
   const [sessionTime, setSessionTime] = useState('10:00 AM');
+
+  // Loading & error states
+  const [loadingClassrooms, setLoadingClassrooms] = useState(true);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [pageError, setPageError] = useState('');
+  const [submitError, setSubmitError] = useState('');
 
   // Photo state
   const [classroomPhoto, setClassroomPhoto] = useState(null);
@@ -41,20 +56,66 @@ const TakeAttendance = () => {
   // AI Simulation State
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysisStage, setAiAnalysisStage] = useState('');
-  const [aiDone, setAiDone] = useState(false);
 
-  // Attendance Student Results
-  const [attendanceList, setAttendanceList] = useState(DUMMY_AI_STUDENTS_RESULT);
-  const [stats, setStats] = useState({
-    detectedFaces: 38,
-    recognizedStudents: 36,
-    unknownFaces: 2,
-    avgConfidence: '94.2%'
-  });
+  // Student Attendance Roster
+  const [studentList, setStudentList] = useState([]);
+
+  // 1. Fetch Teacher's Classrooms
+  useEffect(() => {
+    const fetchClassrooms = async () => {
+      try {
+        const data = await classroomApi.getTeacherClassrooms();
+        const list = Array.isArray(data) ? data : data?.classrooms || [];
+        setClassrooms(list);
+        if (list.length > 0 && !selectedClassroomId) {
+          setSelectedClassroomId(list[0]._id);
+        }
+      } catch (err) {
+        setPageError(err.message || 'Failed to fetch your classrooms');
+      } finally {
+        setLoadingClassrooms(false);
+      }
+    };
+    fetchClassrooms();
+  }, []);
+
+  // 2. When classroom changes, fetch full classroom details (with enrolled students)
+  useEffect(() => {
+    if (!selectedClassroomId) return;
+    const fetchClassroomDetails = async () => {
+      setLoadingStudents(true);
+      try {
+        const data = await classroomApi.getById(selectedClassroomId);
+        const cls = data?.classroom || data;
+        setCurrentClassroom(cls);
+
+        // Populate studentList with enrolled students, default to 'present'
+        const students = (cls?.students || []).map((st) => ({
+          _id: st._id,
+          name: st.name,
+          email: st.email,
+          rollNumber: st.rollNumber || 'N/A',
+          status: 'present',
+          confidence: Math.floor(88 + Math.random() * 11),
+        }));
+        setStudentList(students);
+      } catch (err) {
+        setPageError(err.message || 'Failed to fetch classroom students');
+      } finally {
+        setLoadingStudents(false);
+      }
+    };
+    fetchClassroomDetails();
+  }, [selectedClassroomId]);
 
   // Step 1 -> 2
   const handleProceedToPhoto = (e) => {
     e.preventDefault();
+    if (!selectedClassroomId) {
+      setPageError('Please select a classroom first');
+      return;
+    }
+    setPageError('');
     setCurrentStep(2);
   };
 
@@ -81,25 +142,26 @@ const TakeAttendance = () => {
 
     setTimeout(() => {
       setAiAnalysisStage('Extracting 128-dimensional facial biometric encodings...');
-    }, 1000);
+    }, 900);
 
     setTimeout(() => {
-      setAiAnalysisStage('Matching encodings against CSE-4A student facial database...');
-    }, 2000);
+      setAiAnalysisStage(
+        `Matching encodings against ${currentClassroom?.name || 'classroom'} database...`
+      );
+    }, 1800);
 
     setTimeout(() => {
       setIsAnalyzing(false);
-      setAiDone(true);
       setCurrentStep(3);
-    }, 2800);
+    }, 2600);
   };
 
   // Toggle individual student status
   const toggleStudentStatus = (id) => {
-    setAttendanceList((prev) =>
+    setStudentList((prev) =>
       prev.map((student) => {
-        if (student.id === id) {
-          const nextStatus = student.status === 'Present' ? 'Absent' : 'Present';
+        if (student._id === id) {
+          const nextStatus = student.status === 'present' ? 'absent' : 'present';
           return { ...student, status: nextStatus };
         }
         return student;
@@ -108,58 +170,90 @@ const TakeAttendance = () => {
   };
 
   const markAllPresent = () => {
-    setAttendanceList((prev) => prev.map((s) => ({ ...s, status: 'Present' })));
+    setStudentList((prev) => prev.map((s) => ({ ...s, status: 'present' })));
   };
 
   const markAllAbsent = () => {
-    setAttendanceList((prev) => prev.map((s) => ({ ...s, status: 'Absent' })));
+    setStudentList((prev) => prev.map((s) => ({ ...s, status: 'absent' })));
   };
 
-  // Save / Confirm Attendance
-  const handleConfirmAttendance = () => {
-    const presentCount = attendanceList.filter((s) => s.status === 'Present').length;
-    const absentCount = attendanceList.length - presentCount;
+  // Save / Confirm Attendance to POST /api/attendance
+  const handleConfirmAttendance = async () => {
+    if (studentList.length === 0) {
+      setSubmitError('No enrolled students to mark attendance for.');
+      return;
+    }
 
-    // Navigate to /teacher/attendance-result with state
-    navigate('/teacher/attendance-result', {
-      state: {
-        classroom: INITIAL_CLASSROOMS.find((c) => c.id === selectedClassroom)?.name || 'CSE-4A',
-        subject: INITIAL_SUBJECTS.find((s) => s.id === selectedSubject)?.name || 'Data Structures',
-        date: sessionDate,
-        time: sessionTime,
-        totalStudents: attendanceList.length,
-        present: presentCount,
-        absent: absentCount,
-        unknownFaces: stats.unknownFaces,
-        avgConfidence: stats.avgConfidence,
-        students: attendanceList
-      }
-    });
+    setSubmitting(true);
+    setSubmitError('');
+
+    const payload = {
+      classroomId: selectedClassroomId,
+      date: sessionDate,
+      attendance: studentList.map((s) => ({
+        studentId: s._id,
+        status: s.status,
+      })),
+    };
+
+    try {
+      await attendanceApi.mark(payload);
+      navigate('/teacher/attendance-result', {
+        state: {
+          classroomId: selectedClassroomId,
+          classroomName: currentClassroom?.name,
+          subject: currentClassroom?.subject,
+          date: sessionDate,
+          time: sessionTime,
+        },
+      });
+    } catch (err) {
+      setSubmitError(
+        err.message || 'Failed to save attendance. Duplicate record may exist for this date.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const currentClassObj = INITIAL_CLASSROOMS.find((c) => c.id === selectedClassroom);
-  const currentSubObj = INITIAL_SUBJECTS.find((s) => s.id === selectedSubject);
+  const presentCount = studentList.filter((s) => s.status === 'present').length;
+  const absentCount = studentList.length - presentCount;
 
   return (
     <div className="take-attendance-page">
       <PageHeader
         title="AI Classroom Attendance"
-        subtitle="Capture or upload high-resolution classroom snapshot for multi-student facial recognition"
+        subtitle="Capture classroom snapshot, verify students, and submit official attendance"
       />
+
+      {pageError && (
+        <div className="error-banner" style={{ marginBottom: '20px' }}>
+          <AlertCircle size={16} />
+          <span>{pageError}</span>
+        </div>
+      )}
 
       {/* Workflow Step Tracker */}
       <div className="steps-tracker-card">
-        <div className={`step-item ${currentStep >= 1 ? 'active' : ''} ${currentStep > 1 ? 'completed' : ''}`}>
+        <div
+          className={`step-item ${currentStep >= 1 ? 'active' : ''} ${
+            currentStep > 1 ? 'completed' : ''
+          }`}
+        >
           <div className="step-circle">1</div>
           <div className="step-label-group">
             <span className="step-num">Step 1</span>
-            <span className="step-name">Select Class & Subject</span>
+            <span className="step-name">Select Class & Date</span>
           </div>
         </div>
 
         <ChevronRight size={18} className="step-arrow" />
 
-        <div className={`step-item ${currentStep >= 2 ? 'active' : ''} ${currentStep > 2 ? 'completed' : ''}`}>
+        <div
+          className={`step-item ${currentStep >= 2 ? 'active' : ''} ${
+            currentStep > 2 ? 'completed' : ''
+          }`}
+        >
           <div className="step-circle">2</div>
           <div className="step-label-group">
             <span className="step-num">Step 2</span>
@@ -173,77 +267,129 @@ const TakeAttendance = () => {
           <div className="step-circle">3</div>
           <div className="step-label-group">
             <span className="step-num">Step 3</span>
-            <span className="step-name">AI Recognition & Confirm</span>
+            <span className="step-name">Verify & Submit</span>
           </div>
         </div>
       </div>
 
-      {/* STEP 1: Select Classroom & Subject */}
+      {/* STEP 1: Select Classroom & Date */}
       {currentStep === 1 && (
         <div className="card" style={{ maxWidth: '720px', margin: '0 auto' }}>
           <div className="card-header">
             <h3 className="card-title">STEP 1: Select Classroom and Lecture Session</h3>
           </div>
 
-          <form onSubmit={handleProceedToPhoto}>
-            <div className="form-group">
-              <label className="form-label">Select Classroom *</label>
-              <select
-                className="form-select"
-                value={selectedClassroom}
-                onChange={(e) => setSelectedClassroom(e.target.value)}
+          {loadingClassrooms ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+              <Loader2 size={30} className="animate-spin" color="var(--primary)" />
+            </div>
+          ) : classrooms.length === 0 ? (
+            <div className="empty-state" style={{ padding: '32px 0' }}>
+              <AlertCircle size={40} color="var(--warning)" />
+              <h4>No Classrooms Found</h4>
+              <p>You have not created any classrooms yet. Please create a classroom first.</p>
+              <Button
+                variant="primary"
+                size="md"
+                onClick={() => navigate('/teacher/create-classroom')}
               >
-                {INITIAL_CLASSROOMS.map((cls) => (
-                  <option key={cls.id} value={cls.id}>
-                    {cls.name} - {cls.displayName} ({cls.totalStudents} Students)
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Select Subject *</label>
-              <select
-                className="form-select"
-                value={selectedSubject}
-                onChange={(e) => setSelectedSubject(e.target.value)}
-              >
-                {INITIAL_SUBJECTS.map((sub) => (
-                  <option key={sub.id} value={sub.id}>
-                    {sub.name} ({sub.code}) • {sub.credits} Credits
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2" style={{ gap: '16px' }}>
-              <div className="form-group">
-                <label className="form-label">Session Date</label>
-                <input
-                  type="date"
-                  className="form-input"
-                  value={sessionDate}
-                  onChange={(e) => setSessionDate(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Session Timing</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={sessionTime}
-                  onChange={(e) => setSessionTime(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-              <Button type="submit" variant="primary" size="lg" icon={ChevronRight} iconPosition="right">
-                Continue to Photo Capture
+                Create Classroom
               </Button>
             </div>
-          </form>
+          ) : (
+            <form onSubmit={handleProceedToPhoto}>
+              <div className="form-group">
+                <label className="form-label">Select Classroom *</label>
+                <select
+                  className="form-select"
+                  value={selectedClassroomId}
+                  onChange={(e) => setSelectedClassroomId(e.target.value)}
+                  required
+                >
+                  {classrooms.map((cls) => (
+                    <option key={cls._id} value={cls._id}>
+                      {cls.name} — {cls.subject} (Sec {cls.section} • {cls.semester})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {currentClassroom && (
+                <div
+                  style={{
+                    backgroundColor: 'var(--bg-app)',
+                    padding: '12px 16px',
+                    borderRadius: 'var(--radius-md)',
+                    marginBottom: '18px',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                  }}
+                >
+                  <Users size={16} color="var(--primary)" />
+                  <span>
+                    Enrolled Students: <strong>{currentClassroom.students?.length || 0}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Subject: <strong>{currentClassroom.subject}</strong>
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2" style={{ gap: '16px' }}>
+                <div className="form-group">
+                  <label className="form-label">Session Date *</label>
+                  <input
+                    type="date"
+                    required
+                    className="form-input"
+                    value={sessionDate}
+                    onChange={(e) => setSessionDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="form-label">Session Timing</label>
+                  <input
+                    type="text"
+                    className="form-input"
+                    value={sessionTime}
+                    onChange={(e) => setSessionTime(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '24px',
+                }}
+              >
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="md"
+                  onClick={() => setCurrentStep(3)}
+                >
+                  Skip Photo (Manual Entry)
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="lg"
+                  icon={ChevronRight}
+                  iconPosition="right"
+                >
+                  Continue to Photo Capture
+                </Button>
+              </div>
+            </form>
+          )}
         </div>
       )}
 
@@ -254,12 +400,18 @@ const TakeAttendance = () => {
             <div>
               <h3 className="card-title">STEP 2: Capture or Upload Classroom Photo</h3>
               <p className="card-subtitle">
-                Classroom: <strong>{currentClassObj?.name}</strong> • Subject: <strong>{currentSubObj?.name}</strong>
+                Classroom: <strong>{currentClassroom?.name}</strong> • Subject:{' '}
+                <strong>{currentClassroom?.subject}</strong>
               </p>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
-              Change Class
-            </Button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
+                Change Class
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => setCurrentStep(3)}>
+                Skip to Manual Review
+              </Button>
+            </div>
           </div>
 
           {!classroomPhoto ? (
@@ -268,7 +420,10 @@ const TakeAttendance = () => {
                 <ImageIcon size={42} />
               </div>
               <h4>Upload Classroom Photo</h4>
-              <p>Take a wide photo of the lecture hall or upload an existing group image from your device.</p>
+              <p>
+                Take a wide photo of the lecture hall or upload an existing group image from
+                your device.
+              </p>
 
               <div className="dropzone-button-group">
                 <input
@@ -304,11 +459,12 @@ const TakeAttendance = () => {
                 </Button>
               </div>
 
-              <span className="dropzone-supported">Supports high-res JPG, PNG, WEBP (Wide lens recommended)</span>
+              <span className="dropzone-supported">
+                Supports high-res JPG, PNG, WEBP (Wide lens recommended)
+              </span>
             </div>
           ) : (
             <div className="preview-and-actions">
-              {/* Photo Preview Container with Mock Bounding Boxes */}
               <div className="photo-preview-wrapper">
                 <img
                   src={classroomPhoto}
@@ -316,18 +472,17 @@ const TakeAttendance = () => {
                   className="classroom-preview-img"
                 />
 
-                {/* Simulated AI Detection Overlay Bounding Boxes */}
                 <div className="face-bounding-box box-1">
-                  <span className="box-tag">96% Ankush</span>
+                  <span className="box-tag">96% Matched</span>
                 </div>
                 <div className="face-bounding-box box-2">
-                  <span className="box-tag">94% Rahul</span>
+                  <span className="box-tag">94% Matched</span>
                 </div>
                 <div className="face-bounding-box box-3">
-                  <span className="box-tag">97% Priya</span>
+                  <span className="box-tag">97% Matched</span>
                 </div>
                 <div className="face-bounding-box box-4">
-                  <span className="box-tag unknown-tag">Unknown Face</span>
+                  <span className="box-tag unknown-tag">Unmapped Face</span>
                 </div>
 
                 <div className="photo-preview-bar">
@@ -344,7 +499,6 @@ const TakeAttendance = () => {
                 </div>
               </div>
 
-              {/* Run AI Face Recognition Button & Loading Indicator */}
               <div className="run-ai-action-area">
                 {isAnalyzing ? (
                   <div className="ai-analyzing-box">
@@ -355,7 +509,15 @@ const TakeAttendance = () => {
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', width: '100%' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '14px',
+                      width: '100%',
+                    }}
+                  >
                     <Button
                       variant="primary"
                       size="lg"
@@ -366,7 +528,7 @@ const TakeAttendance = () => {
                       Run AI Face Recognition
                     </Button>
                     <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                      Simulates Python FastAPI face detection & student database matching
+                      Simulates neural face detection & matches against enrolled classroom students
                     </span>
                   </div>
                 )}
@@ -376,30 +538,47 @@ const TakeAttendance = () => {
         </div>
       )}
 
-      {/* STEP 3: Display AI Results & Manual Verification Table */}
+      {/* STEP 3: Manual Verification & API Submit */}
       {currentStep === 3 && (
         <div className="ai-results-section">
-          {/* Summary Metric Cards */}
+          {submitError && (
+            <div className="error-banner" style={{ marginBottom: '20px' }}>
+              <AlertCircle size={16} />
+              <span>{submitError}</span>
+            </div>
+          )}
+
+          {/* Metric Cards */}
           <div className="grid grid-cols-4" style={{ marginBottom: '22px' }}>
             <div className="result-kpi-card">
-              <span className="kpi-label">Detected Faces</span>
-              <h3 className="kpi-val" style={{ color: 'var(--text-main)' }}>{stats.detectedFaces}</h3>
-              <span className="kpi-sub">Total faces in frame</span>
+              <span className="kpi-label">Enrolled Students</span>
+              <h3 className="kpi-val" style={{ color: 'var(--text-main)' }}>
+                {studentList.length}
+              </h3>
+              <span className="kpi-sub">Total in classroom</span>
             </div>
             <div className="result-kpi-card">
-              <span className="kpi-label">Recognized Students</span>
-              <h3 className="kpi-val" style={{ color: 'var(--success)' }}>{stats.recognizedStudents}</h3>
-              <span className="kpi-sub">Biometrically matched</span>
+              <span className="kpi-label">Present</span>
+              <h3 className="kpi-val" style={{ color: 'var(--success)' }}>
+                {presentCount}
+              </h3>
+              <span className="kpi-sub">Marked to attend</span>
             </div>
             <div className="result-kpi-card">
-              <span className="kpi-label">Unknown Faces</span>
-              <h3 className="kpi-val" style={{ color: 'var(--warning)' }}>{stats.unknownFaces}</h3>
-              <span className="kpi-sub">Guests / unmapped faces</span>
+              <span className="kpi-label">Absent</span>
+              <h3 className="kpi-val" style={{ color: 'var(--danger)' }}>
+                {absentCount}
+              </h3>
+              <span className="kpi-sub">Marked absent</span>
             </div>
             <div className="result-kpi-card">
-              <span className="kpi-label">Average Confidence</span>
-              <h3 className="kpi-val" style={{ color: 'var(--primary)' }}>{stats.avgConfidence}</h3>
-              <span className="kpi-sub">Cosine similarity index</span>
+              <span className="kpi-label">Attendance Rate</span>
+              <h3 className="kpi-val" style={{ color: 'var(--primary)' }}>
+                {studentList.length > 0
+                  ? ((presentCount / studentList.length) * 100).toFixed(0) + '%'
+                  : '0%'}
+              </h3>
+              <span className="kpi-sub">For {sessionDate}</span>
             </div>
           </div>
 
@@ -407,9 +586,10 @@ const TakeAttendance = () => {
           <div className="card">
             <div className="card-header">
               <div>
-                <h3 className="card-title">Student Attendance Verification Roster</h3>
+                <h3 className="card-title">Student Attendance Roster</h3>
                 <p className="card-subtitle">
-                  Review recognized identities. Teachers can manually override any student's status before committing.
+                  Classroom: <strong>{currentClassroom?.name}</strong> • Date:{' '}
+                  <strong>{sessionDate}</strong>
                 </p>
               </div>
 
@@ -423,96 +603,110 @@ const TakeAttendance = () => {
               </div>
             </div>
 
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Student Name</th>
-                    <th>Roll Number</th>
-                    <th>AI Confidence</th>
-                    <th>Attendance Status</th>
-                    <th style={{ textAlign: 'right' }}>Manual Override Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attendanceList.map((st) => (
-                    <tr key={st.id}>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <img
-                            src={st.avatar}
-                            alt={st.name}
-                            style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                          <span style={{ fontWeight: 700 }}>{st.name}</span>
-                        </div>
-                      </td>
-                      <td>
-                        <code>{st.rollNo}</code>
-                      </td>
-                      <td>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span
-                            style={{
-                              fontWeight: 700,
-                              color: st.confidence >= 90 ? 'var(--success)' : 'var(--warning)'
-                            }}
-                          >
-                            {st.confidence}%
-                          </span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Match</span>
-                        </div>
-                      </td>
-                      <td>
-                        <StatusBadge status={st.status} />
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <button
-                          type="button"
-                          className={`status-toggle-pill ${st.status === 'Present' ? 'toggle-present' : 'toggle-absent'}`}
-                          onClick={() => toggleStudentStatus(st.id)}
-                        >
-                          {st.status === 'Present' ? (
-                            <>
-                              <CheckCircle2 size={14} /> Present (Click to mark Absent)
-                            </>
-                          ) : (
-                            <>
-                              <XCircle size={14} /> Absent (Click to mark Present)
-                            </>
-                          )}
-                        </button>
-                      </td>
+            {loadingStudents ? (
+              <div style={{ display: 'flex', justifyContent: 'center', padding: '40px 0' }}>
+                <Loader2 size={28} className="animate-spin" color="var(--primary)" />
+              </div>
+            ) : studentList.length === 0 ? (
+              <div className="empty-state" style={{ padding: '36px 0' }}>
+                <Users size={40} color="var(--border)" />
+                <h4>No Students Enrolled</h4>
+                <p>
+                  No students have joined this classroom yet. Share the Classroom ID with
+                  students to let them join:
+                </p>
+                <code
+                  style={{
+                    backgroundColor: 'var(--bg-app)',
+                    padding: '8px 16px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.9rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  {selectedClassroomId}
+                </code>
+              </div>
+            ) : (
+              <div className="table-responsive">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Student Name</th>
+                      <th>Email / Roll No</th>
+                      <th>Status</th>
+                      <th style={{ textAlign: 'right' }}>Toggle Action</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {studentList.map((st) => (
+                      <tr key={st._id}>
+                        <td>
+                          <span style={{ fontWeight: 700 }}>{st.name}</span>
+                        </td>
+                        <td>
+                          <div>
+                            <span style={{ fontSize: '0.85rem' }}>{st.email}</span>
+                            {st.rollNumber && st.rollNumber !== 'N/A' && (
+                              <code style={{ display: 'block', fontSize: '0.75rem' }}>
+                                {st.rollNumber}
+                              </code>
+                            )}
+                          </div>
+                        </td>
+                        <td>
+                          <StatusBadge
+                            status={st.status === 'present' ? 'Present' : 'Absent'}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'right' }}>
+                          <button
+                            type="button"
+                            className={`status-toggle-pill ${
+                              st.status === 'present' ? 'toggle-present' : 'toggle-absent'
+                            }`}
+                            onClick={() => toggleStudentStatus(st._id)}
+                          >
+                            {st.status === 'present' ? (
+                              <>
+                                <CheckCircle2 size={14} /> Present (Click to mark Absent)
+                              </>
+                            ) : (
+                              <>
+                                <XCircle size={14} /> Absent (Click to mark Present)
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
 
             {/* Bottom Confirmation Action */}
             <div className="attendance-confirm-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <ShieldCheck size={20} color="var(--primary)" />
                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                  Confirmed records will be logged into the college attendance repository.
+                  Confirmed records will be committed to the official database.
                 </span>
               </div>
 
               <div style={{ display: 'flex', gap: '10px' }}>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setCurrentStep(2)}
-                >
-                  Re-analyze Photo
+                <Button variant="secondary" size="md" onClick={() => setCurrentStep(1)}>
+                  Change Class / Date
                 </Button>
                 <Button
                   variant="primary"
                   size="lg"
                   icon={Check}
+                  loading={submitting}
+                  disabled={studentList.length === 0}
                   onClick={handleConfirmAttendance}
                 >
-                  Confirm Attendance
+                  Submit Official Attendance
                 </Button>
               </div>
             </div>

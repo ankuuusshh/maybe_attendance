@@ -101,11 +101,11 @@ const AdminDashboard = () => {
               width: '48px',
               height: '48px',
               borderRadius: '12px',
-              background: 'linear-gradient(135deg, #2563eb, #7c3aed)',
+              background: 'linear-gradient(135deg, #7c3aed, #f97316)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              boxShadow: '0 0 15px rgba(37, 99, 235, 0.4)'
+              boxShadow: '0 0 15px rgba(124, 58, 237, 0.35)'
             }}>
               <Cpu size={24} color="#ffffff" />
             </div>

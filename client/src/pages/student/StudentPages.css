@@ -1,6 +1,6 @@
 /* Shared Student Styling */
 .welcome-banner {
-  background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+  background: linear-gradient(135deg, #2e1065 0%, #1e1b4b 100%);
   border-radius: var(--radius-xl);
   padding: 28px 32px;
   color: #ffffff;
@@ -22,7 +22,7 @@
   display: inline-block;
   font-size: 0.75rem;
   font-weight: 700;
-  color: #93c5fd;
+  color: #ddd6fe;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   margin-bottom: 8px;
@@ -37,7 +37,7 @@
 
 .welcome-text-wrap p {
   font-size: 0.9rem;
-  color: #94a3b8;
+  color: #c4b5fd;
 }
 
 .welcome-text-wrap strong {
@@ -58,12 +58,12 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #2563eb, #7c3aed);
+  background: linear-gradient(135deg, #7c3aed, #f97316);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ffffff;
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.4);
 }
 
 .biometric-info {

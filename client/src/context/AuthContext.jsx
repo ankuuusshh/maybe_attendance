@@ -1,79 +1,62 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { authApi, getToken, setToken, removeToken } from '../services/api';
 
 const AuthContext = createContext();
 
-const DEFAULT_USERS = {
-  student: {
-    id: "s1",
-    name: "Ankush Raj",
-    email: "ankush.raj@college.edu",
-    role: "student",
-    rollNo: "24105129015",
-    department: "Computer Science & Engineering",
-    semester: "4th Semester",
-    section: "A",
-    avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=150&q=80"
-  },
-  teacher: {
-    id: "t1",
-    name: "Prof. Dr. Rajesh Sharma",
-    email: "rajesh.sharma@college.edu",
-    role: "teacher",
-    empId: "EMP-CS-101",
-    department: "Computer Science & Engineering",
-    designation: "Associate Professor & HOD",
-    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
-  },
-  admin: {
-    id: "a1",
-    name: "Dr. Vikram Sen",
-    email: "admin@college.edu",
-    role: "admin",
-    empId: "ADM-HQ-001",
-    department: "Academic Administration",
-    designation: "Dean of Academics & System Admin",
-    avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80"
-  }
-};
-
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(() => {
-    try {
-      const savedUser = localStorage.getItem('attendai_user');
-      return savedUser ? JSON.parse(savedUser) : DEFAULT_USERS.student;
-    } catch {
-      return DEFAULT_USERS.student;
-    }
-  });
+  const [user, setUser] = useState(null);
+  const [token, setTokenState] = useState(() => getToken());
+  const [loading, setLoading] = useState(true);
 
+  // On mount: if a token exists, restore the user via GET /api/auth/me
   useEffect(() => {
-    if (user) {
-      localStorage.setItem('attendai_user', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('attendai_user');
-    }
-  }, [user]);
+    const restore = async () => {
+      const savedToken = getToken();
+      if (!savedToken) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await authApi.me();
+        // backend returns { _id, name, email, role, ... }
+        setUser(data?.user || data);
+      } catch {
+        // Token invalid or expired — clear it
+        removeToken();
+        setTokenState(null);
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    restore();
+  }, []);
 
-  const login = (role, customInfo = {}) => {
-    const baseUser = DEFAULT_USERS[role] || DEFAULT_USERS.student;
-    const finalUser = { ...baseUser, ...customInfo, role };
-    setUser(finalUser);
-    return finalUser;
+  /**
+   * Log in with email + password.
+   * Saves JWT, sets user state.
+   * Returns the user object so callers can navigate by role.
+   */
+  const login = async (email, password) => {
+    const data = await authApi.login(email, password);
+    // backend: { token, user: { _id, name, email, role, ... } }
+    setToken(data.token);
+    setTokenState(data.token);
+    setUser(data.user);
+    return data.user;
   };
 
+  /**
+   * Log out — clears token, user state.
+   */
   const logout = () => {
+    removeToken();
+    setTokenState(null);
     setUser(null);
-    localStorage.removeItem('attendai_user');
-  };
-
-  const switchRole = (newRole) => {
-    if (DEFAULT_USERS[newRole]) {
-      setUser(DEFAULT_USERS[newRole]);
-    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, switchRole }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
