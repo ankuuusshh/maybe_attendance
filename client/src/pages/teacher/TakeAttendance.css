@@ -1,0 +1,345 @@
+.take-attendance-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Steps Tracker */
+.steps-tracker-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 28px;
+  gap: 16px;
+  box-shadow: var(--shadow-xs);
+  flex-wrap: wrap;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.step-item.active {
+  opacity: 1;
+}
+
+.step-circle {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background-color: #f1f5f9;
+  color: var(--text-secondary);
+  font-weight: 800;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+}
+
+.step-item.active .step-circle {
+  background-color: var(--primary);
+  color: #ffffff;
+  border-color: var(--primary);
+}
+
+.step-item.completed .step-circle {
+  background-color: var(--success);
+  color: #ffffff;
+  border-color: var(--success);
+}
+
+.step-label-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-num {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.step-name {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.step-arrow {
+  color: var(--text-light);
+}
+
+/* Dropzone */
+.photo-upload-dropzone {
+  border: 2px dashed #cbd5e1;
+  border-radius: var(--radius-xl);
+  padding: 48px 24px;
+  text-align: center;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transition: border-color 0.2s;
+}
+
+.photo-upload-dropzone:hover {
+  border-color: var(--primary);
+}
+
+.dropzone-icon-ring {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.photo-upload-dropzone h4 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.photo-upload-dropzone p {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  max-width: 480px;
+}
+
+.dropzone-button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dropzone-supported {
+  font-size: 0.775rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* Preview with Bounding Boxes */
+.preview-and-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.photo-preview-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 480px;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: #000;
+}
+
+.classroom-preview-img {
+  width: 100%;
+  max-height: 480px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Simulated AI Bounding Boxes */
+.face-bounding-box {
+  position: absolute;
+  border: 2px solid #22c55e;
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+  pointer-events: none;
+  animation: pulse 2s infinite;
+}
+
+.box-1 {
+  top: 30%;
+  left: 22%;
+  width: 70px;
+  height: 70px;
+  border-radius: 4px;
+}
+
+.box-2 {
+  top: 35%;
+  left: 45%;
+  width: 65px;
+  height: 65px;
+  border-radius: 4px;
+}
+
+.box-3 {
+  top: 28%;
+  left: 68%;
+  width: 68px;
+  height: 68px;
+  border-radius: 4px;
+}
+
+.box-4 {
+  top: 42%;
+  left: 82%;
+  width: 60px;
+  height: 60px;
+  border-color: #f59e0b;
+}
+
+.box-tag {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  background: #22c55e;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.unknown-tag {
+  background: #f59e0b;
+}
+
+.photo-preview-bar {
+  position: absolute;
+  bottom: 0;
+  inset-inline: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  padding: 16px 20px;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.85rem;
+}
+
+.run-ai-action-area {
+  padding: 24px;
+  background-color: #f8fafc;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  display: flex;
+  justify-content: center;
+}
+
+.ai-analyzing-box {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 16px 24px;
+}
+
+.spinner-halo {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--primary-border);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+}
+
+.analyzing-text-wrap h4 {
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-bottom: 3px;
+}
+
+.analyzing-stage-text {
+  font-size: 0.825rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* KPI cards */
+.result-kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px 20px;
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-label {
+  font-size: 0.775rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.kpi-val {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin: 4px 0;
+}
+
+.kpi-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.status-toggle-pill {
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+
+.toggle-present {
+  background-color: var(--success-light);
+  color: var(--success-text);
+  border: 1px solid var(--success-border);
+}
+
+.toggle-present:hover {
+  background-color: #d1fae5;
+}
+
+.toggle-absent {
+  background-color: var(--danger-light);
+  color: var(--danger-text);
+  border: 1px solid var(--danger-border);
+}
+
+.toggle-absent:hover {
+  background-color: #fee2e2;
+}
+
+.attendance-confirm-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-light);
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 768px) {
+  .steps-tracker-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .step-arrow {
+    display: none;
+  }
+}

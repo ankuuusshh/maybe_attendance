@@ -1,0 +1,136 @@
+.datatable-container {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.datatable-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.datatable-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.datatable-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.datatable-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 260px;
+  max-width: 380px;
+  flex: 1;
+}
+
+.datatable-search-icon {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.datatable-search-input {
+  width: 100%;
+  padding: 8px 32px 8px 36px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.875rem;
+  color: var(--text-main);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.datatable-search-input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-focus);
+}
+
+.datatable-clear-search {
+  position: absolute;
+  right: 10px;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+}
+
+.datatable-clear-search:hover {
+  color: var(--text-main);
+}
+
+.datatable-state-cell {
+  text-align: center;
+  padding: 40px !important;
+}
+
+.datatable-empty-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text-muted);
+}
+
+.datatable-empty-icon {
+  color: var(--text-light);
+}
+
+.datatable-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.datatable-page-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.datatable-page-btn {
+  padding: 5px 12px;
+  background-color: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.datatable-page-btn:hover:not(:disabled) {
+  background-color: #f1f5f9;
+  color: var(--text-main);
+}
+
+.datatable-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.datatable-current-page {
+  font-weight: 600;
+  color: var(--text-main);
+  padding: 0 6px;
+}

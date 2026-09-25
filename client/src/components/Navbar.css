@@ -1,0 +1,304 @@
+.app-navbar {
+  height: var(--navbar-height);
+  background-color: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+
+.navbar-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.navbar-menu-toggle {
+  display: none;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: all 0.15s;
+}
+
+.navbar-menu-toggle:hover {
+  background-color: #f1f5f9;
+  color: var(--text-main);
+}
+
+.navbar-academic-tag {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.institute-badge {
+  background-color: var(--primary-light);
+  color: var(--primary);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--primary-border);
+}
+
+.session-text {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+/* Quick Role Switcher */
+.role-switcher-container {
+  position: relative;
+}
+
+.role-switcher-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background-color: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.825rem;
+  color: var(--text-main);
+  transition: all 0.15s;
+}
+
+.role-switcher-btn:hover {
+  background-color: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.role-icon-wrap {
+  color: var(--primary);
+  display: flex;
+}
+
+.role-btn-text strong {
+  text-transform: capitalize;
+  color: var(--primary);
+}
+
+.dropdown-chevron {
+  color: var(--text-muted);
+  transition: transform 0.2s;
+}
+
+.dropdown-chevron.rotate {
+  transform: rotate(180deg);
+}
+
+.role-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 280px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 6px;
+  z-index: 200;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.role-dropdown-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 8px 12px 6px;
+  letter-spacing: 0.05em;
+}
+
+.role-dropdown-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: background-color 0.15s;
+  color: var(--text-secondary);
+}
+
+.role-dropdown-item:hover {
+  background-color: #f8fafc;
+  color: var(--text-main);
+}
+
+.role-dropdown-item.selected {
+  background-color: var(--primary-light);
+  color: var(--primary);
+}
+
+.role-item-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.item-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.item-desc {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+}
+
+.item-check {
+  color: var(--primary);
+}
+
+/* Icon Buttons */
+.navbar-notifications-wrap {
+  position: relative;
+}
+
+.navbar-icon-btn {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  background-color: #ffffff;
+  transition: all 0.15s;
+}
+
+.navbar-icon-btn:hover {
+  background-color: #f8fafc;
+  color: var(--text-main);
+}
+
+.notification-badge-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: var(--danger);
+  border: 1.5px solid #ffffff;
+}
+
+.notifications-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 14px;
+  z-index: 200;
+}
+
+.notifications-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border-light);
+  margin-bottom: 10px;
+}
+
+.notifications-header h4 {
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.notifications-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.notification-item {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-secondary);
+  padding: 6px;
+  border-radius: var(--radius-sm);
+}
+
+.notification-item:hover {
+  background-color: #f8fafc;
+}
+
+.notification-time {
+  display: block;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+/* User Pill */
+.navbar-user-pill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--border);
+}
+
+.navbar-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--primary-border);
+}
+
+.navbar-user-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar-user-name {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.navbar-user-role {
+  font-size: 0.725rem;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1024px) {
+  .navbar-menu-toggle {
+    display: flex;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-navbar {
+    padding: 0 16px;
+  }
+  .navbar-academic-tag,
+  .navbar-user-details {
+    display: none;
+  }
+}
