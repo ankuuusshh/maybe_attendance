@@ -3,6 +3,7 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
+const classroomRoutes = require("./routes/classroomRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +21,7 @@ app.get("/", (req, res) => {
 
 // API routes
 app.use("/api/auth", authRoutes);
+app.use("/api/classrooms", classroomRoutes);
 
 // Start server after DB connection
 const PORT = process.env.PORT || 5000;
