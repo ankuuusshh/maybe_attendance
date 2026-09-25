@@ -32,6 +32,12 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    // Each element is a 128-dimensional face encoding (array of floats)
+    // A student can have multiple encodings (3-5 samples) for better accuracy
+    faceEncodings: {
+      type: [[Number]],
+      default: [],
+    },
   },
   {
     timestamps: true, // adds createdAt and updatedAt automatically

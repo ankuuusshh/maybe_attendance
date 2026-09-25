@@ -108,3 +108,60 @@ export const attendanceApi = {
   update: (attendanceId, data) => put(`/attendance/${attendanceId}`, data),
   delete: (attendanceId) => del(`/attendance/${attendanceId}`),
 };
+
+// ── AI / Face Recognition ──────────────────────────────────────────────────
+export const aiApi = {
+  /** Check if Python AI service is reachable */
+  health: () => get('/ai/health'),
+
+  /** Get student's current face registration status */
+  getFaceStatus: () => get('/ai/face-status'),
+
+  /**
+   * Register a face photo for the logged-in student.
+   * @param {File} photoFile - A File or Blob object
+   */
+  registerFace: async (photoFile) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('photo', photoFile);
+
+    const res = await fetch(`${BASE_URL}/ai/register-face`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    let data;
+    try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+    if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+    return data;
+  },
+
+  /** Clear all stored face encodings for the student */
+  clearFaceEncodings: () => request('/ai/face-encodings', { method: 'DELETE' }),
+
+  /**
+   * Upload classroom group photo for real AI face recognition.
+   * @param {string} classroomId
+   * @param {File} photoFile - The classroom group image
+   */
+  recognizeClassroom: async (classroomId, photoFile) => {
+    const token = getToken();
+    const formData = new FormData();
+    formData.append('classroomId', classroomId);
+    formData.append('photo', photoFile);
+
+    const res = await fetch(`${BASE_URL}/ai/recognize-classroom`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    let data;
+    try { data = await res.json(); } catch { throw new Error(`HTTP ${res.status}`); }
+    if (!res.ok) throw new Error(data?.message || `HTTP ${res.status}`);
+    return data;
+  },
+};
+

@@ -14,15 +14,14 @@ import {
   ChevronRight,
   Image as ImageIcon,
   Loader2,
+  WifiOff,
+  Brain,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
 import StatusBadge from '../../components/StatusBadge';
-import { classroomApi, attendanceApi } from '../../services/api';
+import { classroomApi, attendanceApi, aiApi } from '../../services/api';
 import './TakeAttendance.css';
-
-const DEFAULT_SAMPLE_PHOTO =
-  'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?auto=format&fit=crop&w=1200&q=80';
 
 const TakeAttendance = () => {
   const navigate = useNavigate();
@@ -49,20 +48,32 @@ const TakeAttendance = () => {
   const [pageError, setPageError] = useState('');
   const [submitError, setSubmitError] = useState('');
 
-  // Photo state
-  const [classroomPhoto, setClassroomPhoto] = useState(null);
+  // Photo state — store as File for API upload
+  const [classroomPhotoFile, setClassroomPhotoFile] = useState(null);
+  const [classroomPhotoPreview, setClassroomPhotoPreview] = useState(null);
   const fileInputRef = useRef(null);
 
-  // AI Simulation State
+  // AI state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysisStage, setAiAnalysisStage] = useState('');
+  const [aiServiceAvailable, setAiServiceAvailable] = useState(null); // null=checking, true, false
+  const [aiResult, setAiResult] = useState(null); // raw AI response
 
   // Student Attendance Roster
   const [studentList, setStudentList] = useState([]);
 
-  // 1. Fetch Teacher's Classrooms
+  // ── 1. Check AI service + fetch classrooms ──────────────────────────────
   useEffect(() => {
-    const fetchClassrooms = async () => {
+    const init = async () => {
+      // Check AI health
+      try {
+        await aiApi.health();
+        setAiServiceAvailable(true);
+      } catch {
+        setAiServiceAvailable(false);
+      }
+
+      // Fetch classrooms
       try {
         const data = await classroomApi.getTeacherClassrooms();
         const list = Array.isArray(data) ? data : data?.classrooms || [];
@@ -76,10 +87,10 @@ const TakeAttendance = () => {
         setLoadingClassrooms(false);
       }
     };
-    fetchClassrooms();
+    init();
   }, []);
 
-  // 2. When classroom changes, fetch full classroom details (with enrolled students)
+  // ── 2. When classroom changes, fetch students ───────────────────────────
   useEffect(() => {
     if (!selectedClassroomId) return;
     const fetchClassroomDetails = async () => {
@@ -89,14 +100,16 @@ const TakeAttendance = () => {
         const cls = data?.classroom || data;
         setCurrentClassroom(cls);
 
-        // Populate studentList with enrolled students, default to 'present'
+        // Populate roster — default all absent (AI will mark present after recognition)
         const students = (cls?.students || []).map((st) => ({
           _id: st._id,
           name: st.name,
           email: st.email,
           rollNumber: st.rollNumber || 'N/A',
-          status: 'present',
-          confidence: Math.floor(88 + Math.random() * 11),
+          faceRegistered: st.faceRegistered || false,
+          status: 'absent',
+          confidence: null,
+          aiMatched: false,
         }));
         setStudentList(students);
       } catch (err) {
@@ -108,7 +121,7 @@ const TakeAttendance = () => {
     fetchClassroomDetails();
   }, [selectedClassroomId]);
 
-  // Step 1 -> 2
+  // ── Step navigation ─────────────────────────────────────────────────────
   const handleProceedToPhoto = (e) => {
     e.preventDefault();
     if (!selectedClassroomId) {
@@ -119,44 +132,91 @@ const TakeAttendance = () => {
     setCurrentStep(2);
   };
 
-  // Image Upload handlers
+  // ── Image Upload ────────────────────────────────────────────────────────
   const handleImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setClassroomPhoto(event.target.result);
-      };
-      reader.readAsDataURL(file);
+      setClassroomPhotoFile(file);
+      setClassroomPhotoPreview(URL.createObjectURL(file));
+      setAiResult(null); // reset previous AI result
     }
   };
 
-  const handleUseSamplePhoto = () => {
-    setClassroomPhoto(DEFAULT_SAMPLE_PHOTO);
+  const handleReplacePhoto = () => {
+    if (classroomPhotoPreview) URL.revokeObjectURL(classroomPhotoPreview);
+    setClassroomPhotoFile(null);
+    setClassroomPhotoPreview(null);
+    setAiResult(null);
   };
 
-  // Run AI Simulation
-  const handleRunAiRecognition = () => {
-    setIsAnalyzing(true);
-    setAiAnalysisStage('Detecting human faces in classroom photo (HOG / CNN)...');
+  // ── Real AI Face Recognition ────────────────────────────────────────────
+  const handleRunAiRecognition = async () => {
+    if (!classroomPhotoFile) return;
 
-    setTimeout(() => {
-      setAiAnalysisStage('Extracting 128-dimensional facial biometric encodings...');
+    setIsAnalyzing(true);
+    setAiResult(null);
+    setPageError('');
+
+    const stages = [
+      'Detecting human faces using HOG feature descriptor...',
+      'Extracting 128-dimensional facial biometric encodings...',
+      `Matching against ${currentClassroom?.name || 'classroom'} enrolled students...`,
+      'Finalizing attendance recognition results...',
+    ];
+
+    // Show progress stages while waiting for API
+    let stageIdx = 0;
+    setAiAnalysisStage(stages[0]);
+    const stageInterval = setInterval(() => {
+      stageIdx = Math.min(stageIdx + 1, stages.length - 1);
+      setAiAnalysisStage(stages[stageIdx]);
     }, 900);
 
-    setTimeout(() => {
-      setAiAnalysisStage(
-        `Matching encodings against ${currentClassroom?.name || 'classroom'} database...`
-      );
-    }, 1800);
+    try {
+      const result = await aiApi.recognizeClassroom(selectedClassroomId, classroomPhotoFile);
+      clearInterval(stageInterval);
 
-    setTimeout(() => {
+      setAiResult(result);
+
+      // Apply AI results to the student roster
+      const resultMap = {};
+      (result.results || []).forEach((r) => {
+        resultMap[r.studentId] = r;
+      });
+
+      setStudentList((prev) =>
+        prev.map((student) => {
+          const match = resultMap[student._id];
+          if (match) {
+            return {
+              ...student,
+              status: match.status,
+              confidence: match.confidence,
+              aiMatched: match.status === 'present',
+              faceRegistered: match.faceRegistered ?? student.faceRegistered,
+            };
+          }
+          return student;
+        })
+      );
+
       setIsAnalyzing(false);
       setCurrentStep(3);
-    }, 2600);
+    } catch (err) {
+      clearInterval(stageInterval);
+      setIsAnalyzing(false);
+      setPageError(err.message || 'AI recognition failed. Please try again or use manual entry.');
+    }
   };
 
-  // Toggle individual student status
+  // ── Skip to manual entry ────────────────────────────────────────────────
+  const handleSkipToManual = () => {
+    // Mark all students present by default when skipping AI
+    setStudentList((prev) => prev.map((s) => ({ ...s, status: 'present', aiMatched: false })));
+    setCurrentStep(3);
+  };
+
+  // ── Student status toggle ───────────────────────────────────────────────
   const toggleStudentStatus = (id) => {
     setStudentList((prev) =>
       prev.map((student) => {
@@ -177,7 +237,7 @@ const TakeAttendance = () => {
     setStudentList((prev) => prev.map((s) => ({ ...s, status: 'absent' })));
   };
 
-  // Save / Confirm Attendance to POST /api/attendance
+  // ── Submit Attendance ───────────────────────────────────────────────────
   const handleConfirmAttendance = async () => {
     if (studentList.length === 0) {
       setSubmitError('No enrolled students to mark attendance for.');
@@ -205,11 +265,13 @@ const TakeAttendance = () => {
           subject: currentClassroom?.subject,
           date: sessionDate,
           time: sessionTime,
+          aiUsed: !!aiResult,
+          facesDetected: aiResult?.facesDetected,
         },
       });
     } catch (err) {
       setSubmitError(
-        err.message || 'Failed to save attendance. Duplicate record may exist for this date.'
+        err.message || 'Failed to save attendance. A duplicate record may exist for this date.'
       );
     } finally {
       setSubmitting(false);
@@ -218,6 +280,7 @@ const TakeAttendance = () => {
 
   const presentCount = studentList.filter((s) => s.status === 'present').length;
   const absentCount = studentList.length - presentCount;
+  const faceRegisteredCount = studentList.filter((s) => s.faceRegistered).length;
 
   return (
     <div className="take-attendance-page">
@@ -230,6 +293,30 @@ const TakeAttendance = () => {
         <div className="error-banner" style={{ marginBottom: '20px' }}>
           <AlertCircle size={16} />
           <span>{pageError}</span>
+        </div>
+      )}
+
+      {/* AI Service status banner */}
+      {aiServiceAvailable === false && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            background: 'rgba(245, 158, 11, 0.1)',
+            border: '1px solid rgba(245, 158, 11, 0.3)',
+            borderRadius: 'var(--radius-md)',
+            padding: '12px 16px',
+            marginBottom: '20px',
+            color: 'var(--warning)',
+            fontSize: '0.875rem',
+          }}
+        >
+          <WifiOff size={16} />
+          <span>
+            <strong>AI Service Offline</strong> — Python FastAPI is not running. You can still
+            take attendance manually. To enable AI recognition, start the AI service.
+          </span>
         </div>
       )}
 
@@ -272,7 +359,7 @@ const TakeAttendance = () => {
         </div>
       </div>
 
-      {/* STEP 1: Select Classroom & Date */}
+      {/* ── STEP 1: Select Classroom & Date ── */}
       {currentStep === 1 && (
         <div className="card" style={{ maxWidth: '720px', margin: '0 auto' }}>
           <div className="card-header">
@@ -287,7 +374,7 @@ const TakeAttendance = () => {
             <div className="empty-state" style={{ padding: '32px 0' }}>
               <AlertCircle size={40} color="var(--warning)" />
               <h4>No Classrooms Found</h4>
-              <p>You have not created any classrooms yet. Please create a classroom first.</p>
+              <p>Create a classroom first before taking attendance.</p>
               <Button
                 variant="primary"
                 size="md"
@@ -326,11 +413,19 @@ const TakeAttendance = () => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '12px',
+                    flexWrap: 'wrap',
                   }}
                 >
                   <Users size={16} color="var(--primary)" />
                   <span>
-                    Enrolled Students: <strong>{currentClassroom.students?.length || 0}</strong>
+                    Enrolled: <strong>{currentClassroom.students?.length || 0}</strong>
+                  </span>
+                  <span>•</span>
+                  <span>
+                    Face-registered:{' '}
+                    <strong style={{ color: faceRegisteredCount > 0 ? 'var(--success)' : 'var(--warning)' }}>
+                      {faceRegisteredCount}
+                    </strong>
                   </span>
                   <span>•</span>
                   <span>
@@ -374,7 +469,7 @@ const TakeAttendance = () => {
                   type="button"
                   variant="ghost"
                   size="md"
-                  onClick={() => setCurrentStep(3)}
+                  onClick={handleSkipToManual}
                 >
                   Skip Photo (Manual Entry)
                 </Button>
@@ -393,7 +488,7 @@ const TakeAttendance = () => {
         </div>
       )}
 
-      {/* STEP 2: Photo Capture / Upload & AI Processing */}
+      {/* ── STEP 2: Photo Upload & AI Processing ── */}
       {currentStep === 2 && (
         <div className="card">
           <div className="card-header">
@@ -402,27 +497,60 @@ const TakeAttendance = () => {
               <p className="card-subtitle">
                 Classroom: <strong>{currentClassroom?.name}</strong> • Subject:{' '}
                 <strong>{currentClassroom?.subject}</strong>
+                {faceRegisteredCount > 0 && (
+                  <>
+                    {' '}•{' '}
+                    <span style={{ color: 'var(--success)' }}>
+                      {faceRegisteredCount} student{faceRegisteredCount !== 1 ? 's' : ''} face-registered
+                    </span>
+                  </>
+                )}
               </p>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <Button variant="ghost" size="sm" onClick={() => setCurrentStep(1)}>
                 Change Class
               </Button>
-              <Button variant="outline" size="sm" onClick={() => setCurrentStep(3)}>
-                Skip to Manual Review
+              <Button variant="outline" size="sm" onClick={handleSkipToManual}>
+                Skip to Manual
               </Button>
             </div>
           </div>
 
-          {!classroomPhoto ? (
+          {/* Warning if no students have face registered */}
+          {faceRegisteredCount === 0 && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                background: 'rgba(245, 158, 11, 0.08)',
+                border: '1px solid rgba(245, 158, 11, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 16px',
+                marginBottom: '16px',
+                fontSize: '0.875rem',
+                color: 'var(--warning)',
+              }}
+            >
+              <AlertCircle size={16} />
+              <span>
+                No students in this classroom have registered their face yet. AI recognition
+                will detect faces but won't be able to match them. Ask students to complete{' '}
+                <strong>Face Registration</strong> first.
+              </span>
+            </div>
+          )}
+
+          {!classroomPhotoPreview ? (
             <div className="photo-upload-dropzone">
               <div className="dropzone-icon-ring">
                 <ImageIcon size={42} />
               </div>
               <h4>Upload Classroom Photo</h4>
               <p>
-                Take a wide photo of the lecture hall or upload an existing group image from
-                your device.
+                Take a wide photo of the lecture hall or upload an existing group image. The AI
+                will detect and match student faces automatically.
               </p>
 
               <div className="dropzone-button-group">
@@ -449,50 +577,55 @@ const TakeAttendance = () => {
                 >
                   Take Photo
                 </Button>
-                <Button
-                  variant="outline"
-                  icon={Sparkles}
-                  size="md"
-                  onClick={handleUseSamplePhoto}
-                >
-                  Use Demo Classroom Photo
-                </Button>
               </div>
 
               <span className="dropzone-supported">
-                Supports high-res JPG, PNG, WEBP (Wide lens recommended)
+                Supports JPG, PNG, WEBP — Wide lens recommended for group photos
               </span>
             </div>
           ) : (
             <div className="preview-and-actions">
               <div className="photo-preview-wrapper">
                 <img
-                  src={classroomPhoto}
+                  src={classroomPhotoPreview}
                   alt="Classroom Snapshot"
                   className="classroom-preview-img"
                 />
 
-                <div className="face-bounding-box box-1">
-                  <span className="box-tag">96% Matched</span>
-                </div>
-                <div className="face-bounding-box box-2">
-                  <span className="box-tag">94% Matched</span>
-                </div>
-                <div className="face-bounding-box box-3">
-                  <span className="box-tag">97% Matched</span>
-                </div>
-                <div className="face-bounding-box box-4">
-                  <span className="box-tag unknown-tag">Unmapped Face</span>
-                </div>
+                {/* Static bounding box overlays (visual cue) */}
+                {aiResult && (
+                  <>
+                    <div className="face-bounding-box box-1">
+                      <span className="box-tag">Face Detected</span>
+                    </div>
+                    <div className="face-bounding-box box-2">
+                      <span className="box-tag">Face Detected</span>
+                    </div>
+                    {aiResult.facesDetected > 2 && (
+                      <div className="face-bounding-box box-3">
+                        <span className="box-tag">Face Detected</span>
+                      </div>
+                    )}
+                    {aiResult.unknownFaces > 0 && (
+                      <div className="face-bounding-box box-4">
+                        <span className="box-tag unknown-tag">Unregistered Face</span>
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div className="photo-preview-bar">
-                  <span>Photo loaded: Ready for 128-d face recognition analysis</span>
+                  <span>
+                    {aiResult
+                      ? `✓ ${aiResult.facesDetected} face${aiResult.facesDetected !== 1 ? 's' : ''} detected • ${aiResult.unknownFaces} unregistered`
+                      : 'Photo loaded — ready for AI face recognition'}
+                  </span>
                   <Button
                     size="sm"
                     variant="ghost"
                     style={{ color: '#fff' }}
                     icon={RotateCcw}
-                    onClick={() => setClassroomPhoto(null)}
+                    onClick={handleReplacePhoto}
                   >
                     Replace Photo
                   </Button>
@@ -518,18 +651,65 @@ const TakeAttendance = () => {
                       width: '100%',
                     }}
                   >
+                    {aiResult && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          color: 'var(--success)',
+                          fontSize: '0.9rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <CheckCircle2 size={18} />
+                        AI matched {aiResult.results?.filter((r) => r.status === 'present').length} student
+                        {aiResult.results?.filter((r) => r.status === 'present').length !== 1 ? 's' : ''}
+                        {' '}present from {aiResult.facesDetected} face{aiResult.facesDetected !== 1 ? 's' : ''} detected
+                      </div>
+                    )}
+
                     <Button
                       variant="primary"
                       size="lg"
-                      icon={Sparkles}
-                      onClick={handleRunAiRecognition}
+                      icon={aiServiceAvailable ? Brain : Sparkles}
+                      onClick={
+                        aiServiceAvailable
+                          ? handleRunAiRecognition
+                          : handleSkipToManual
+                      }
                       style={{ minWidth: '280px', fontSize: '1rem', padding: '14px 28px' }}
                     >
-                      Run AI Face Recognition
+                      {aiResult
+                        ? 'Re-run AI Recognition'
+                        : aiServiceAvailable
+                        ? 'Run AI Face Recognition'
+                        : 'Continue to Manual Entry'}
                     </Button>
-                    <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
-                      Simulates neural face detection & matches against enrolled classroom students
-                    </span>
+
+                    {aiServiceAvailable === false && (
+                      <span style={{ fontSize: '0.825rem', color: 'var(--warning)' }}>
+                        AI service offline — skipping to manual attendance
+                      </span>
+                    )}
+
+                    {aiServiceAvailable === true && !aiResult && (
+                      <span style={{ fontSize: '0.825rem', color: 'var(--text-muted)' }}>
+                        Uses ageitgey/face_recognition — 128-d biometric matching against enrolled students
+                      </span>
+                    )}
+
+                    {aiResult && (
+                      <Button
+                        variant="outline"
+                        size="md"
+                        icon={ChevronRight}
+                        iconPosition="right"
+                        onClick={() => setCurrentStep(3)}
+                      >
+                        Proceed to Verification
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
@@ -538,13 +718,42 @@ const TakeAttendance = () => {
         </div>
       )}
 
-      {/* STEP 3: Manual Verification & API Submit */}
+      {/* ── STEP 3: Manual Verification & Submit ── */}
       {currentStep === 3 && (
         <div className="ai-results-section">
           {submitError && (
             <div className="error-banner" style={{ marginBottom: '20px' }}>
               <AlertCircle size={16} />
               <span>{submitError}</span>
+            </div>
+          )}
+
+          {/* AI summary banner */}
+          {aiResult && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px solid rgba(99, 102, 241, 0.25)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px 20px',
+                marginBottom: '20px',
+                fontSize: '0.875rem',
+                color: 'var(--primary)',
+              }}
+            >
+              <Brain size={18} />
+              <span>
+                <strong>AI Recognition Complete</strong> — {aiResult.facesDetected} face
+                {aiResult.facesDetected !== 1 ? 's' : ''} detected,{' '}
+                {aiResult.results?.filter((r) => r.status === 'present').length} students matched.
+                {aiResult.unknownFaces > 0 && (
+                  <> {aiResult.unknownFaces} unregistered face{aiResult.unknownFaces !== 1 ? 's' : ''} found.</>
+                )}{' '}
+                Review and adjust below before submitting.
+              </span>
             </div>
           )}
 
@@ -590,6 +799,9 @@ const TakeAttendance = () => {
                 <p className="card-subtitle">
                   Classroom: <strong>{currentClassroom?.name}</strong> • Date:{' '}
                   <strong>{sessionDate}</strong>
+                  {aiResult && (
+                    <> • <span style={{ color: 'var(--primary)' }}>AI-assisted</span></>
+                  )}
                 </p>
               </div>
 
@@ -612,8 +824,7 @@ const TakeAttendance = () => {
                 <Users size={40} color="var(--border)" />
                 <h4>No Students Enrolled</h4>
                 <p>
-                  No students have joined this classroom yet. Share the Classroom ID with
-                  students to let them join:
+                  No students have joined this classroom yet. Share the Classroom ID with students:
                 </p>
                 <code
                   style={{
@@ -634,8 +845,10 @@ const TakeAttendance = () => {
                     <tr>
                       <th>Student Name</th>
                       <th>Email / Roll No</th>
+                      <th>Face Reg.</th>
+                      <th>AI Confidence</th>
                       <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Toggle Action</th>
+                      <th style={{ textAlign: 'right' }}>Toggle</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -655,6 +868,35 @@ const TakeAttendance = () => {
                           </div>
                         </td>
                         <td>
+                          {st.faceRegistered ? (
+                            <span style={{ color: 'var(--success)', fontSize: '0.8rem' }}>✓ Yes</span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>— No</span>
+                          )}
+                        </td>
+                        <td>
+                          {st.confidence != null ? (
+                            <span
+                              style={{
+                                fontWeight: 700,
+                                color:
+                                  st.confidence >= 80
+                                    ? 'var(--success)'
+                                    : st.confidence >= 60
+                                    ? 'var(--warning)'
+                                    : 'var(--danger)',
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              {st.confidence}%
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                              {aiResult ? '—' : 'N/A'}
+                            </span>
+                          )}
+                        </td>
+                        <td>
                           <StatusBadge
                             status={st.status === 'present' ? 'Present' : 'Absent'}
                           />
@@ -669,11 +911,11 @@ const TakeAttendance = () => {
                           >
                             {st.status === 'present' ? (
                               <>
-                                <CheckCircle2 size={14} /> Present (Click to mark Absent)
+                                <CheckCircle2 size={14} /> Present (click to mark Absent)
                               </>
                             ) : (
                               <>
-                                <XCircle size={14} /> Absent (Click to mark Present)
+                                <XCircle size={14} /> Absent (click to mark Present)
                               </>
                             )}
                           </button>
@@ -685,7 +927,7 @@ const TakeAttendance = () => {
               </div>
             )}
 
-            {/* Bottom Confirmation Action */}
+            {/* Confirmation Bar */}
             <div className="attendance-confirm-bar">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <ShieldCheck size={20} color="var(--primary)" />

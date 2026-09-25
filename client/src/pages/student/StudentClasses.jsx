@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, User, Loader2, AlertCircle, FolderOpen, Plus } from 'lucide-react';
+import { BookOpen, User, Loader2, AlertCircle, FolderOpen, Plus, CheckCircle2, Hash } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import StatusBadge from '../../components/StatusBadge';
 import Button from '../../components/Button';
@@ -10,6 +10,7 @@ const StudentClasses = () => {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successBanner, setSuccessBanner] = useState('');
 
   // Join classroom
   const [joinCode, setJoinCode] = useState('');
@@ -36,6 +37,8 @@ const StudentClasses = () => {
     setJoining(true);
     try {
       await classroomApi.join(joinCode.trim());
+      setSuccessBanner('Successfully joined the classroom!');
+      setTimeout(() => setSuccessBanner(''), 4000);
       setJoinModalOpen(false);
       setJoinCode('');
       // Reload classrooms
@@ -64,6 +67,27 @@ const StudentClasses = () => {
           </Button>
         }
       />
+
+      {successBanner && (
+        <div
+          style={{
+            backgroundColor: 'var(--success-light)',
+            border: '1px solid var(--success-border)',
+            color: 'var(--success-text)',
+            padding: '12px 18px',
+            borderRadius: 'var(--radius-md)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            marginBottom: '20px',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+          }}
+        >
+          <CheckCircle2 size={18} color="var(--success)" />
+          <span>{successBanner}</span>
+        </div>
+      )}
 
       {loading && (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '60px 0' }}>
@@ -148,6 +172,25 @@ const StudentClasses = () => {
                     </span>
                   </div>
                 )}
+
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    backgroundColor: 'var(--bg-app)',
+                    padding: '6px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    marginTop: '4px',
+                  }}
+                >
+                  <Hash size={13} color="var(--primary)" />
+                  <span>
+                    Classroom ID: <code style={{ fontFamily: 'var(--font-mono)' }}>{cls._id}</code>
+                  </span>
+                </div>
               </div>
             </div>
           ))}

@@ -5,6 +5,7 @@ const connectDB = require("./config/db");
 const authRoutes = require("./routes/authRoutes");
 const classroomRoutes = require("./routes/classroomRoutes");
 const attendanceRoutes = require("./routes/attendanceRoutes");
+const aiRoutes = require("./routes/aiRoutes");
 
 // Load environment variables
 dotenv.config();
@@ -24,6 +25,7 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/classrooms", classroomRoutes);
 app.use("/api/attendance", attendanceRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Start server after DB connection
 const PORT = process.env.PORT || 5000;

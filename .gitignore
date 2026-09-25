@@ -16,3 +16,15 @@ server/dist/
 
 # macOS
 .DS_Store
+
+# Python virtual environment (AI service dependencies)
+scratch_venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+ai-service/__pycache__/
+ai-service/*.pyc
+

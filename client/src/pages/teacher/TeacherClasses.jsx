@@ -8,6 +8,9 @@ import {
   Loader2,
   AlertCircle,
   FolderOpen,
+  Copy,
+  Check,
+  Hash,
 } from 'lucide-react';
 import PageHeader from '../../components/PageHeader';
 import Button from '../../components/Button';
@@ -18,6 +21,13 @@ const TeacherClasses = () => {
   const [classrooms, setClassrooms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copiedId, setCopiedId] = useState(null);
+
+  const handleCopy = (id) => {
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -139,6 +149,87 @@ const TeacherClasses = () => {
                   <span>
                     Enrolled: <strong>{cls.students?.length ?? 0} Students</strong>
                   </span>
+                </div>
+
+                {/* Classroom ID / Join Code */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    backgroundColor: 'var(--bg-app)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-md)',
+                    padding: '8px 12px',
+                    marginTop: '4px',
+                    gap: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                    <Hash size={15} color="var(--primary)" style={{ flexShrink: 0 }} />
+                    <div style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                      <span
+                        style={{
+                          fontSize: '0.675rem',
+                          color: 'var(--text-muted)',
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.04em',
+                        }}
+                      >
+                        Classroom ID / Join Code
+                      </span>
+                      <code
+                        style={{
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          color: 'var(--text-main)',
+                          fontFamily: 'var(--font-mono)',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={cls._id}
+                      >
+                        {cls._id}
+                      </code>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleCopy(cls._id)}
+                    title={copiedId === cls._id ? 'Copied to clipboard!' : 'Copy Classroom ID'}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '5px 10px',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      backgroundColor: copiedId === cls._id ? 'var(--success-light)' : '#ffffff',
+                      color: copiedId === cls._id ? 'var(--success-text)' : 'var(--text-main)',
+                      border: `1px solid ${
+                        copiedId === cls._id ? 'var(--success-border)' : 'var(--border)'
+                      }`,
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s ease',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {copiedId === cls._id ? (
+                      <>
+                        <Check size={12} color="var(--success)" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={12} />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
                 </div>
               </div>
 
